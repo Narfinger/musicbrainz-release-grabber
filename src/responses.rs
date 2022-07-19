@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Pagination {
     pub(crate) per_page: usize,
     pub(crate) items: usize,
@@ -9,7 +9,7 @@ pub(crate) struct Pagination {
     pub(crate) pages: usize,
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct ArtistsRelease {
     pub(crate) artist: String,
     pub(crate) id: usize,
