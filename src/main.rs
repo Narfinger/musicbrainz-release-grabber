@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, read_dir, File},
@@ -30,11 +31,16 @@ impl Config {
     }
 }
 
-fn grab_new_releases() {}
+fn grab_new_releases() -> Result<()> {
+    todo!()
+}
 
 fn get_artists(base_dir: String) -> Result<()> {
     let dir = PathBuf::from_str(&base_dir)?;
+    let dir_count = read_dir(base_dir)?.count();
     let mut entries = read_dir(&dir)?
+        .into_iter()
+        .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| {
             p.file_name()
@@ -64,7 +70,7 @@ struct Args {
 
     /// update ids
     #[clap(short, long, value_parser)]
-    count: bool,
+    update_ids: bool,
 
     /// find new albums
     #[clap(short, long, value_parser)]
@@ -77,6 +83,12 @@ fn main() -> Result<()> {
     if let Some(path) = args.get_artists {
         println!("Getting artists");
         get_artists(path)?;
+    } else if args.update_ids {
+        get_artist_ids()?;
+    } else if args.new {
+        grab_new_releases()?;
+    } else {
+        println!("Please use an argument");
     }
 
     Ok(())
