@@ -21,7 +21,19 @@ pub(crate) struct ArtistsRelease {
     pub(crate) year: usize,
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct ArtistReleasesResponse {
     pub(crate) pagination: Pagination,
     pub(crate) releases: Vec<ArtistsRelease>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct Artist {
+    pub(crate) id: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct SearchResponse {
+    pub(crate) pagination: Pagination,
+    pub(crate) result: Vec<Artist>,
 }
