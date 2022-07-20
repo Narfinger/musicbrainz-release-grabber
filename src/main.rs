@@ -2,13 +2,6 @@ use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use indicatif::ProgressIterator;
-use musicbrainz_rs::{
-    entity::{
-        artist::Artist,
-        release::{Release, ReleaseStatus},
-    },
-    prelude::*,
-};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -18,6 +11,8 @@ use std::{
     str::FromStr,
 };
 use time::{Date, Month};
+
+pub mod responses;
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Config {
@@ -38,24 +33,6 @@ impl Config {
         let str = toml::to_string_pretty(&self).context("Toml to string")?;
         fs::write("config.toml", str).context("Writing string")?;
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct MyRelease {
-    title: String,
-    date: chrono::NaiveDate,
-}
-
-impl From<Release> for MyRelease {
-    fn from(r: Release) -> Self {
-        MyRelease { title: r.title, date: r.date.unwrap() }
-    }
-}
-
-impl MyRelease {
-    fn pretty_print(&self) {
-        println!("{} - {}", Green.paint(self.date.to_string()), Red.paint(&self.title))
     }
 }
 
