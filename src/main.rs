@@ -39,8 +39,11 @@ fn grab_new_releases() -> Result<()> {
         .user_agent("MusicbrainzReleaseGrabber")
         .build()?;
     let a = Artist::new(&client, "Blind Guardian")?;
-    let albums = a.get_albums_basic_filtered(&client);
-    println!("{:?}", albums);
+    let albums = a.get_albums_basic_filtered(&client)?;
+
+    for i in albums {
+        println!("{} - {}", Green.paint(i.date.to_string()), Red.paint(i.title));
+    }
 
     Ok(())
 }
