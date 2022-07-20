@@ -36,9 +36,10 @@ impl Config {
     }
 }
 
-fn releases() -> Result<Vec<Release>> {
+fn releases() -> Result<()> {
     let c = Config::read()?;
-    let mut all_releases: Vec<Release> = Vec::new();
+    todo!()
+   /* let mut all_releases: Vec<Release> = Vec::new();
     for i in c.artist_names.iter() {
         let q = Artist::query_builder().name(i).build();
 
@@ -61,6 +62,7 @@ fn releases() -> Result<Vec<Release>> {
         }
     }
     Ok(all_releases)
+     */
 }
 
 fn grab_new_releases() -> Result<()> {
