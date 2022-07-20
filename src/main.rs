@@ -39,7 +39,7 @@ impl Config {
 fn releases() -> Result<()> {
     let c = Config::read()?;
     todo!()
-   /* let mut all_releases: Vec<Release> = Vec::new();
+    /* let mut all_releases: Vec<Release> = Vec::new();
     for i in c.artist_names.iter() {
         let q = Artist::query_builder().name(i).build();
 
