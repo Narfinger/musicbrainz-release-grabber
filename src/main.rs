@@ -4,13 +4,11 @@ use clap::Parser;
 use indicatif::ProgressIterator;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
-    fmt::Display,
     fs::{self, read_dir},
     path::PathBuf,
     str::FromStr,
 };
-use time::{Date, Month};
+use responses::{Album, Artist};
 
 pub mod responses;
 
@@ -36,45 +34,11 @@ impl Config {
     }
 }
 
-fn releases() -> Result<()> {
-    let c = Config::read()?;
-    todo!()
-    /* let mut all_releases: Vec<Release> = Vec::new();
-    for i in c.artist_names.iter() {
-        let q = Artist::query_builder().name(i).build();
-
-        let query_result = Artist::search(q).execute()?;
-        let artist_id = query_result.entities[0].id.clone();
-        let artist = Artist::fetch().id(&artist_id).with_releases().execute()?;
-
-        println!("artist_id {}", artist_id);
-        let mut albums: Vec<MyRelease> = artist
-            .releases
-            .unwrap()
-            .into_iter()
-            .filter(|a| a.status == Some(ReleaseStatus::Official))
-            .map(|r: Release| r.into())
-            .collect();
-        //albums.dedup_by_key(|r| r.title.clone());
-
-        for i in albums {
-            i.pretty_print();
-        }
-    }
-    Ok(all_releases)
-     */
-}
-
 fn grab_new_releases() -> Result<()> {
-    releases()?;
-    //let rough_releases = releases(client)?;
-
-    //filtering
-    //let releases: HashSet<Release> = HashSet::from_iter(rough_releases.into_iter());
-
-    //for i in releases {
-    //    i.pretty_print();
-    // }
+    let client = reqwest::blocking::ClientBuilder::new().user_agent("MusicbrainzReleaseGrabber").build()?;
+    let a = Artist::new(&client, "Blind Guardian")?;
+    let albums = a.get_albums_basic_filtered(&client);
+    println!("{:?}", albums);
 
     Ok(())
 }
