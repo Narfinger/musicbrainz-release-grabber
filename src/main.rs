@@ -1,17 +1,23 @@
-use anyhow::{Context, Result, anyhow};
+use ansi_term::Colour::{Blue, Green, Red};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use indicatif::{ProgressIterator};
-use reqwest::{blocking::Client, StatusCode};
-use responses::SearchResponse;
+use indicatif::ProgressIterator;
+use musicbrainz_rs::{
+    entity::{
+        artist::Artist,
+        release::{Release, ReleaseStatus},
+    },
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
-use ansi_term::Colour::{Blue, Red};
 use std::{
+    collections::HashSet,
+    fmt::Display,
     fs::{self, read_dir},
     path::PathBuf,
     str::FromStr,
 };
-
-pub mod responses;
+use time::{Date, Month};
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Config {
@@ -35,8 +41,63 @@ impl Config {
     }
 }
 
+#[derive(Debug)]
+struct MyRelease {
+    title: String,
+    date: chrono::NaiveDate,
+}
+
+impl From<Release> for MyRelease {
+    fn from(r: Release) -> Self {
+        MyRelease { title: r.title, date: r.date.unwrap() }
+    }
+}
+
+impl MyRelease {
+    fn pretty_print(&self) {
+        println!("{} - {}", Green.paint(self.date.to_string()), Red.paint(&self.title))
+    }
+}
+
+fn releases() -> Result<Vec<Release>> {
+    let c = Config::read()?;
+    let mut all_releases: Vec<Release> = Vec::new();
+    for i in c.artist_names.iter() {
+        let q = Artist::query_builder().name(i).build();
+
+        let query_result = Artist::search(q).execute()?;
+        let artist_id = query_result.entities[0].id.clone();
+        let artist = Artist::fetch().id(&artist_id).with_releases().execute()?;
+
+        println!("artist_id {}", artist_id);
+        let mut albums: Vec<MyRelease> = artist
+            .releases
+            .unwrap()
+            .into_iter()
+            .filter(|a| a.status == Some(ReleaseStatus::Official))
+            .map(|r: Release| r.into())
+            .collect();
+        //albums.dedup_by_key(|r| r.title.clone());
+
+        for i in albums {
+            i.pretty_print();
+        }
+    }
+    Ok(all_releases)
+}
+
 fn grab_new_releases() -> Result<()> {
-    todo!()
+    releases()?;
+    //let rough_releases = releases(client)?;
+
+    //filtering
+    //let releases: HashSet<Release> = HashSet::from_iter(rough_releases.into_iter());
+
+    //for i in releases {
+    //    i.pretty_print();
+    // }
+
+    Ok(())
 }
 
 fn get_artists(dir: PathBuf) -> Result<()> {
@@ -62,49 +123,12 @@ fn get_artists(dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_artist_ids(client: Client) -> Result<()> {
-    let mut c = Config::read()?;
-    c.artist_ids = Vec::new();
-    for i in c.artist_names.iter().progress() {
-        let query_url = format!("https://api.discogs.com/database/search?q={}&artist", i);
-
-        let resp = client
-            .get(&query_url)
-            .header(
-                "Authorization",
-                format!("Discogs key={}, secret={}", c.discogs_key, c.discogs_secret),
-            )
-            .send()?;
-        println!("resp.status() {}", resp.status());
-        if resp.status() != StatusCode::OK {
-            println!(
-                "Got status code {}, aborting the whole thing",
-                Red.paint(resp.status().to_string())
-            );
-
-            println!("{}", Red.paint("Response is following"));
-            let resp_string = format!("{:?}", client.get(&query_url).send().unwrap());
-            println!("{}", Blue.paint(resp_string));
-            return Err(anyhow!("Aborting"));
-        }
-
-        let search_response: SearchResponse = resp.json()?;
-        c.artist_ids.push(search_response.result[0].id);
-    }
-    c.write()?;
-    Ok(())
-}
-
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Get the artists from a file
     #[clap(short, long, value_parser)]
     get_artists: Option<String>,
-
-    /// update ids
-    #[clap(short, long)]
-    update_ids: bool,
 
     /// find new albums
     #[clap(short, long)]
@@ -113,15 +137,10 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let client = Client::builder()
-        .user_agent("discogs-new-release-scraper")
-        .build()?;
     if let Some(path) = args.get_artists {
         println!("Getting artists");
         let p = PathBuf::from_str(&path)?;
         get_artists(p)?;
-    } else if args.update_ids {
-        get_artist_ids(client)?;
     } else if args.new {
         grab_new_releases()?;
     } else {

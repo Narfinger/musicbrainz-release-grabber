@@ -1,5 +1,5 @@
 [package]
-name = "discogs-release-grabber"
+name = "musicbrainz-release-grabber"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,9 +8,11 @@ edition = "2021"
 [dependencies]
 ansi_term = "0.12.1"
 anyhow = "1.0.58"
+chrono = "0.4.19"
 clap = { version = "3.2.13", features = ["derive"] }
 directories = "4.0.1"
 indicatif = "0.16.2"
-reqwest = {version = "0.11.11", features=["json", "blocking"]}
+musicbrainz_rs = "0.4.0"
 serde = { version = "1.0.139", features = ["derive"] }
+time = "0.3.11"
 toml = "0.5.9"
