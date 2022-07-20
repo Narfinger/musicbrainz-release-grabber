@@ -39,7 +39,8 @@ impl Artist {
     }
 
     fn get_albums(self, client: &Client) -> Result<Vec<ReleasesResponse>> {
-        let resp: LookupResponse = client
+        let mut all_releases = Vec::new();
+        let mut resp: LookupResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
                 self.id
@@ -48,7 +49,22 @@ impl Artist {
             .context("Error in getting albums")?
             .json()
             .context("Error in decoding albums")?;
-        Ok(resp.releases)
+        all_releases.append(&mut resp.releases);
+        let total_results = resp.release_count.unwrap_or(0);
+        while all_releases.len() < total_results {
+            let mut resp: LookupResponse = client
+            .get(format!(
+                "https://musicbrainz.org/ws/2/release?artist={}&offset={}limit=100&fmt=json&inc=release-groups",
+                all_releases.len(),
+                self.id
+            ))
+            .send()
+            .context("Error in getting albums")?
+            .json()
+            .context("Error in decoding albums")?;
+            all_releases.append(&mut resp.releases);
+        }
+        Ok(all_releases)
     }
 
     pub(crate) fn get_albums_basic_filtered(self, client: &Client) -> Result<Vec<Album>> {
@@ -71,6 +87,8 @@ impl Artist {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LookupResponse {
+    #[serde(rename = "release-count")]
+    release_count: Option<usize>,
     releases: Vec<ReleasesResponse>,
 }
 
