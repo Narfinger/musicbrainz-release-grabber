@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, anyhow, Result};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -52,16 +52,33 @@ impl Artist {
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
-            let mut resp: LookupResponse = client
-            .get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={}&offset={}limit=100&fmt=json&inc=release-groups",
+
+            println!("{}", all_releases.len());
+            //let resp =client
+            //.get(format!(
+            //    "https://musicbrainz.org/ws/2/release?artist={}&limit=10&offset={}&fmt=json&inc=release-groups",
+            //    self.id,
+            //    all_releases.len(),
+            //)).send().unwrap().text();
+            //println!("\n\n\n");
+            //println!("resp {:?}", resp);
+
+
+            let response = client.get(format!(
+                "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
+                self.id,
                 all_releases.len(),
-                self.id
             ))
             .send()
-            .context("Error in getting albums")?
+            .context("Error in getting albums step")?;
+            if !response.status().is_success() {
+                return Err(anyhow!("Found wrong status, code {}", response.status()));
+            }
+
+            let mut resp: LookupResponse = response
             .json()
             .context("Error in decoding albums")?;
+            println!("we have done: offset {}, release offset {}", all_releases.len(), resp.release_offset.unwrap_or(0));
             all_releases.append(&mut resp.releases);
         }
         Ok(all_releases)
@@ -73,9 +90,10 @@ impl Artist {
             .into_iter()
             .filter(|a| a.status == Status::Official)
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
+            .filter(|a| a.date.is_some())
             .map(|a| Album {
                 title: a.title,
-                date: a.date,
+                date: a.date.unwrap(),
             })
             .collect::<Vec<_>>();
         albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
@@ -87,6 +105,8 @@ impl Artist {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LookupResponse {
+    #[serde(rename = "release-offset")]
+    release_offset: Option<usize>,
     #[serde(rename = "release-count")]
     release_count: Option<usize>,
     releases: Vec<ReleasesResponse>,
@@ -111,11 +131,12 @@ enum ReleaseType {
     EP,
     Album,
     Single,
+    Other,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ReleasesResponse {
-    date: String,
+    date: Option<String>,
     status: Status,
     title: String,
     #[serde(rename = "release-group")]
