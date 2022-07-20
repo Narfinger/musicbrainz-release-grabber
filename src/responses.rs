@@ -1,15 +1,15 @@
 use anyhow::{Context, Result};
 use reqwest::blocking::Client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ArtistsResponse {
     id: String,
+    name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SearchResponse {
-    name: String,
     artists: Vec<ArtistsResponse>,
 }
 
@@ -22,11 +22,6 @@ pub(crate) struct Artist {
 impl Artist {
     pub(crate) fn new(client: &Client, s: &str) -> Result<Self> {
         let s = String::from(s).replace(" ", "%20");
-        println!("{:?}", client.get(format!(
-            "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
-            s
-        ))
-        .send().unwrap().text());
         let resp: SearchResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
@@ -38,7 +33,7 @@ impl Artist {
             .context("Error in decoding artist id response")?;
 
         Ok(Artist {
-            name: resp.name,
+            name: resp.artists[0].name.clone(),
             id: resp.artists[0].id.clone(),
         })
     }
@@ -46,7 +41,7 @@ impl Artist {
     fn get_albums(self, client: &Client) -> Result<Vec<ReleasesResponse>> {
         let resp: LookupResponse = client
             .get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json",
+                "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
                 self.id
             ))
             .send()
@@ -58,20 +53,31 @@ impl Artist {
 
     pub(crate) fn get_albums_basic_filtered(self, client: &Client) -> Result<Vec<Album>> {
         let albs_resp = self.get_albums(client)?;
-        let mut albs = albs_resp.into_iter().filter(|a| a.status==Status::Official).map(|a| Album {
-            title: a.title,
-            date: a.date,
-        }).collect::<Vec<_>>();
-        albs.dedup_by_key(|a| a.title.clone());
+        let mut albs = albs_resp
+            .into_iter()
+            .filter(|a| a.status == Status::Official)
+            .filter(|a| a.release_group.primary_type == ReleaseType::Album)
+            .map(|a| Album {
+                title: a.title,
+                date: a.date,
+            })
+            .collect::<Vec<_>>();
+        albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
+        albs.dedup_by(|a, b| a.title.eq(&b.title));
         albs.sort_by_key(|a| a.date.clone());
         Ok(albs)
     }
-
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LookupResponse {
     releases: Vec<ReleasesResponse>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ReleaseGroup {
+    #[serde(rename = "primary-type")]
+    primary_type: ReleaseType,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -82,11 +88,20 @@ enum Status {
     Pseudo_Release,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+enum ReleaseType {
+    EP,
+    Album,
+    Single,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct ReleasesResponse {
     date: String,
     status: Status,
     title: String,
+    #[serde(rename = "release-group")]
+    release_group: ReleaseGroup,
 }
 
 #[derive(Debug)]

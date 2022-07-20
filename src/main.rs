@@ -2,13 +2,13 @@ use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use indicatif::ProgressIterator;
+use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
     str::FromStr,
 };
-use responses::{Album, Artist};
 
 pub mod responses;
 
@@ -35,7 +35,9 @@ impl Config {
 }
 
 fn grab_new_releases() -> Result<()> {
-    let client = reqwest::blocking::ClientBuilder::new().user_agent("MusicbrainzReleaseGrabber").build()?;
+    let client = reqwest::blocking::ClientBuilder::new()
+        .user_agent("MusicbrainzReleaseGrabber")
+        .build()?;
     let a = Artist::new(&client, "Blind Guardian")?;
     let albums = a.get_albums_basic_filtered(&client);
     println!("{:?}", albums);
