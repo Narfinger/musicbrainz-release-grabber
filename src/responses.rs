@@ -1,7 +1,6 @@
-use anyhow::{Context, anyhow, Result};
-use indicatif::ProgressBar;
+use anyhow::{anyhow, Context, Result};
 use reqwest::blocking::Client;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -15,7 +14,7 @@ struct SearchResponse {
     artists: Vec<ArtistsResponse>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Artist {
     pub(crate) name: String,
     pub(crate) id: Uuid,
@@ -23,7 +22,7 @@ pub(crate) struct Artist {
 
 impl Artist {
     pub(crate) fn new(client: &Client, s: &str) -> Result<Self> {
-        let s = String::from(s).replace(" ", "%20");
+        let s = String::from(s).replace(' ', "%20");
         let resp: SearchResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
@@ -66,10 +65,12 @@ impl Artist {
                 return Err(anyhow!("Found wrong status, code {}", response.status()));
             }
 
-            let mut resp: LookupResponse = response
-            .json()
-            .context("Error in decoding albums")?;
-            println!("we have done: offset {}, release offset {}", all_releases.len(), resp.release_offset.unwrap_or(0));
+            let mut resp: LookupResponse = response.json().context("Error in decoding albums")?;
+            println!(
+                "we have done: offset {}, release offset {}",
+                all_releases.len(),
+                resp.release_offset.unwrap_or(0)
+            );
             all_releases.append(&mut resp.releases);
         }
         Ok(all_releases)

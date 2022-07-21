@@ -1,10 +1,10 @@
 use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::{anyhow, Context, Result};
+use clap::CommandFactory;
 use clap::Parser;
 use indicatif::ProgressIterator;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -16,7 +16,7 @@ pub mod responses;
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Config {
     artist_names: Vec<String>,
-    artist_full: Vec<(Uuid, String)>,
+    artist_full: Vec<Artist>,
     last_checked_time: usize,
     discogs_key: String,
     discogs_secret: String,
@@ -42,8 +42,8 @@ fn get_artist_ids() -> Result<()> {
     let mut c = Config::read()?;
     c.artist_full.clear();
     for i in c.artist_names.iter().progress() {
-        let a = Artist::new(&client, &i)?;
-        c.artist_full.push((a.id,i.clone()));
+        let a = Artist::new(&client, i)?;
+        c.artist_full.push(a);
     }
     c.write()?;
     Ok(())
@@ -56,14 +56,12 @@ fn grab_new_releases() -> Result<()> {
 
     let c = Config::read()?;
     let mut all_albums: Vec<Album> = Vec::new();
-    for (id,name) in c.artist_full.into_iter().progress() {
-        let a = Artist { id, name};
+    for a in c.artist_full.into_iter().progress() {
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
     }
 
-    ///do filter here
-
+    todo!("do filtering");
     Ok(())
 }
 
@@ -78,14 +76,13 @@ fn get_artists(dir: PathBuf) -> Result<()> {
         .filter_map(|p| {
             p.file_name()
                 .and_then(|p| p.to_str())
-                .map(|s| String::from(s))
+                .map(String::from)
         })
         .collect::<Vec<String>>();
 
     entries.sort();
 
-    let mut c = Config::default();
-    c.artist_names = entries;
+    let c = Config {artist_names: entries, ..Default::default()};
     c.write()?;
     Ok(())
 }
@@ -94,30 +91,41 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Get the artists from a file
-    #[clap(short, long, value_parser)]
-    get_artists: Option<String>,
+    #[clap(short, long, value_parser =valid_dir, value_name = "DIR")]
+    artists: Option<PathBuf>,
 
     /// get artists ids
     #[clap(short, long)]
-    get_artists_ids: bool,
+    ids: bool,
 
     /// find new albums
     #[clap(short, long)]
     new: bool,
 }
 
+fn valid_dir(s: &str) -> Result<PathBuf, String> {
+    let p = PathBuf::from_str(s).map_err(|_| "Not a valid directory description".to_string())?;
+    if !p.exists() {
+        Err("Directory does not exist".to_string())
+    } else if p.is_dir() {
+        Err("Not a directory".to_string())
+    } else {
+        Ok(p)
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
-    if let Some(path) = args.get_artists {
+    if let Some(path) = args.artists {
         println!("Getting artists");
-        let p = PathBuf::from_str(&path)?;
-        get_artists(p)?;
-    } else if args.get_artists_ids {
+        get_artists(path)?;
+    } else if args.ids {
         get_artist_ids()?;
     } else if args.new {
         grab_new_releases()?;
     } else {
-        println!("Please use an argument");
+        let mut cmd = Args::command();
+        cmd.print_help()?;
     }
 
     Ok(())
