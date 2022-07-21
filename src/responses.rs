@@ -1,6 +1,8 @@
 use anyhow::{Context, anyhow, Result};
+use indicatif::ProgressBar;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Deserializer, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ArtistsResponse {
@@ -16,7 +18,7 @@ struct SearchResponse {
 #[derive(Debug)]
 pub(crate) struct Artist {
     pub(crate) name: String,
-    pub(crate) id: String,
+    pub(crate) id: Uuid,
 }
 
 impl Artist {
@@ -32,9 +34,10 @@ impl Artist {
             .json()
             .context("Error in decoding artist id response")?;
 
+        let id = Uuid::parse_str(&resp.artists[0].id)?;
         Ok(Artist {
             name: resp.artists[0].name.clone(),
-            id: resp.artists[0].id.clone(),
+            id,
         })
     }
 
@@ -52,18 +55,6 @@ impl Artist {
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
-
-            println!("{}", all_releases.len());
-            //let resp =client
-            //.get(format!(
-            //    "https://musicbrainz.org/ws/2/release?artist={}&limit=10&offset={}&fmt=json&inc=release-groups",
-            //    self.id,
-            //    all_releases.len(),
-            //)).send().unwrap().text();
-            //println!("\n\n\n");
-            //println!("resp {:?}", resp);
-
-
             let response = client.get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
                 self.id,

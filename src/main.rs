@@ -4,6 +4,7 @@ use clap::Parser;
 use indicatif::ProgressIterator;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -15,7 +16,7 @@ pub mod responses;
 #[derive(Default, Debug, Serialize, Deserialize)]
 struct Config {
     artist_names: Vec<String>,
-    artist_ids: Vec<usize>,
+    artist_full: Vec<(Uuid, String)>,
     last_checked_time: usize,
     discogs_key: String,
     discogs_secret: String,
@@ -34,16 +35,34 @@ impl Config {
     }
 }
 
+fn get_artist_ids() -> Result<()> {
+    let client = reqwest::blocking::ClientBuilder::new()
+        .user_agent("MusicbrainzReleaseGrabber")
+        .build()?;
+    let mut c = Config::read()?;
+    c.artist_full.clear();
+    for i in c.artist_names.iter().progress() {
+        let a = Artist::new(&client, &i)?;
+        c.artist_full.push((a.id,i.clone()));
+    }
+    c.write()?;
+    Ok(())
+}
+
 fn grab_new_releases() -> Result<()> {
     let client = reqwest::blocking::ClientBuilder::new()
         .user_agent("MusicbrainzReleaseGrabber")
         .build()?;
-    let a = Artist::new(&client, "Blind Guardian")?;
-    let albums = a.get_albums_basic_filtered(&client)?;
 
-    for i in albums {
-        println!("{} - {}", Green.paint(i.date.to_string()), Red.paint(i.title));
+    let c = Config::read()?;
+    let mut all_albums: Vec<Album> = Vec::new();
+    for (id,name) in c.artist_full.into_iter().progress() {
+        let a = Artist { id, name};
+        let mut albums = a.get_albums_basic_filtered(&client)?;
+        all_albums.append(&mut albums);
     }
+
+    ///do filter here
 
     Ok(())
 }
@@ -78,6 +97,10 @@ struct Args {
     #[clap(short, long, value_parser)]
     get_artists: Option<String>,
 
+    /// get artists ids
+    #[clap(short, long)]
+    get_artists_ids: bool,
+
     /// find new albums
     #[clap(short, long)]
     new: bool,
@@ -89,6 +112,8 @@ fn main() -> Result<()> {
         println!("Getting artists");
         let p = PathBuf::from_str(&path)?;
         get_artists(p)?;
+    } else if args.get_artists_ids {
+        get_artist_ids()?;
     } else if args.new {
         grab_new_releases()?;
     } else {
