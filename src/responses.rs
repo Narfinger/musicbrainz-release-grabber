@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
+use time::{Date, format_description};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,14 +79,16 @@ impl Artist {
 
     pub(crate) fn get_albums_basic_filtered(self, client: &Client) -> Result<Vec<Album>> {
         let albs_resp = self.get_albums(client)?;
+        let format = format_description::parse("[year]-[month]-[day]")?;
         let mut albs = albs_resp
             .into_iter()
             .filter(|a| a.status == Status::Official)
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
             .filter(|a| a.date.is_some())
             .map(|a| Album {
+                artist: "empty".to_string(),
                 title: a.title,
-                date: a.date.unwrap(),
+                date: a.date.and_then(|d| Date::parse(&d, &format).ok()),
             })
             .collect::<Vec<_>>();
         albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
@@ -137,6 +140,7 @@ struct ReleasesResponse {
 
 #[derive(Debug)]
 pub(crate) struct Album {
+    pub(crate) artist: String,
     pub(crate) title: String,
-    pub(crate) date: String,
+    pub(crate) date: Option<Date>,
 }

@@ -5,6 +5,9 @@ use clap::Parser;
 use indicatif::ProgressIterator;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
+use time::Date;
+use time::OffsetDateTime;
+use time::format_description;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -13,13 +16,11 @@ use std::{
 
 pub mod responses;
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Config {
     artist_names: Vec<String>,
     artist_full: Vec<Artist>,
-    last_checked_time: usize,
-    discogs_key: String,
-    discogs_secret: String,
+    last_checked_time: Option<Date>,
 }
 
 impl Config {
@@ -61,7 +62,22 @@ fn grab_new_releases() -> Result<()> {
         all_albums.append(&mut albums);
     }
 
-    todo!("do filtering");
+    println!("Filtering results");
+    let mut res = all_albums
+        .iter()
+        .filter(|a| a.date.is_none() || a.date.unwrap() >= c.last_checked_time.unwrap())
+        .collect::<Vec<&Album>>();
+    res.sort_by_cached_key(|a| a.artist.clone());
+
+    print_new_albums(&res)?;
+    Ok(())
+}
+
+fn print_new_albums(a: &[&Album]) -> Result<()> {
+    let format = format_description::parse("[year]-[month]-[day]")?;
+    for i in a {
+        println!("{} - {}", Red.paint(&i.artist), Green.paint(&i.title));
+    }
     Ok(())
 }
 
@@ -82,7 +98,12 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 
     entries.sort();
 
-    let c = Config {artist_names: entries, ..Default::default()};
+    let last_checked_or_now = Config::read().ok().and_then(|c| c.last_checked_time).unwrap_or(OffsetDateTime::now_utc().date());
+
+    let c = Config {
+        artist_names: entries,
+        artist_full: vec![],
+        last_checked_time: None};
     c.write()?;
     Ok(())
 }
@@ -101,6 +122,10 @@ struct Args {
     /// find new albums
     #[clap(short, long)]
     new: bool,
+
+    /// Write config
+    #[clap(short, long)]
+    config: bool,
 }
 
 fn valid_dir(s: &str) -> Result<PathBuf, String> {
@@ -123,6 +148,13 @@ fn main() -> Result<()> {
         get_artist_ids()?;
     } else if args.new {
         grab_new_releases()?;
+    } else if args.config {
+        let c = Config {
+            artist_full: vec![],
+            artist_names: vec![],
+            last_checked_time: Some(OffsetDateTime::now_utc().date())
+        };
+        c.write()?;
     } else {
         let mut cmd = Args::command();
         cmd.print_help()?;
