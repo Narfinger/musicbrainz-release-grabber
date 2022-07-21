@@ -41,7 +41,7 @@ impl Artist {
         })
     }
 
-    fn get_albums(self, client: &Client) -> Result<Vec<ReleasesResponse>> {
+    fn get_albums(&self, client: &Client) -> Result<Vec<ReleasesResponse>> {
         let mut all_releases = Vec::new();
         let mut resp: LookupResponse = client
             .get(format!(
@@ -77,7 +77,7 @@ impl Artist {
         Ok(all_releases)
     }
 
-    pub(crate) fn get_albums_basic_filtered(self, client: &Client) -> Result<Vec<Album>> {
+    pub(crate) fn get_albums_basic_filtered(&self, client: &Client) -> Result<Vec<Album>> {
         let albs_resp = self.get_albums(client)?;
         let format = format_description::parse("[year]-[month]-[day]")?;
         let mut albs = albs_resp
@@ -86,7 +86,7 @@ impl Artist {
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
             .filter(|a| a.date.is_some())
             .map(|a| Album {
-                artist: "empty".to_string(),
+                artist: self.name.to_owned(),
                 title: a.title,
                 date: a.date.and_then(|d| Date::parse(&d, &format).ok()),
             })

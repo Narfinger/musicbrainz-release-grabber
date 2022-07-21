@@ -20,19 +20,24 @@ pub mod responses;
 struct Config {
     artist_names: Vec<String>,
     artist_full: Vec<Artist>,
-    last_checked_time: Option<Date>,
+    last_checked_time: Date,
 }
 
 impl Config {
     fn read() -> Result<Config> {
         let s = fs::read_to_string("config.toml").context("Reading config file")?;
-        toml::from_str::<Config>(&s).context("Could not read config")
+        serde_json::from_str::<Config>(&s).context("Could not read config")
     }
 
     fn write(&self) -> Result<()> {
-        let str = toml::to_string_pretty(&self).context("Toml to string")?;
+        let str = serde_json::to_string_pretty(&self).context("Toml to string")?;
         fs::write("config.toml", str).context("Writing string")?;
         Ok(())
+    }
+
+    fn now(&mut self) -> Result<()> {
+        self.last_checked_time=  OffsetDateTime::now_utc().date();
+        self.write()
     }
 }
 
@@ -55,9 +60,9 @@ fn grab_new_releases() -> Result<()> {
         .user_agent("MusicbrainzReleaseGrabber")
         .build()?;
 
-    let c = Config::read()?;
+    let mut c = Config::read()?;
     let mut all_albums: Vec<Album> = Vec::new();
-    for a in c.artist_full.into_iter().progress() {
+    for a in c.artist_full.iter().progress() {
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
     }
@@ -65,18 +70,23 @@ fn grab_new_releases() -> Result<()> {
     println!("Filtering results");
     let mut res = all_albums
         .iter()
-        .filter(|a| a.date.is_none() || a.date.unwrap() >= c.last_checked_time.unwrap())
+        .filter(|a| a.date.is_none() || a.date.unwrap() >= c.last_checked_time)
         .collect::<Vec<&Album>>();
     res.sort_by_cached_key(|a| a.artist.clone());
 
     print_new_albums(&res)?;
+
+    // updateing config
+    c.now()?;
     Ok(())
 }
 
 fn print_new_albums(a: &[&Album]) -> Result<()> {
+    println!("Found {} new albums", a.len());
     let format = format_description::parse("[year]-[month]-[day]")?;
     for i in a {
-        println!("{} - {}", Red.paint(&i.artist), Green.paint(&i.title));
+        let date:String = i.date.and_then(|d| d.format(&format).ok()).unwrap_or("NONE".to_string());
+        println!("{} - {} - {}", Red.paint(&i.artist), Blue.paint(&date), Green.paint(&i.title));
     }
     Ok(())
 }
@@ -98,12 +108,10 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 
     entries.sort();
 
-    let last_checked_or_now = Config::read().ok().and_then(|c| c.last_checked_time).unwrap_or(OffsetDateTime::now_utc().date());
-
     let c = Config {
         artist_names: entries,
         artist_full: vec![],
-        last_checked_time: None};
+        last_checked_time: OffsetDateTime::now_utc().date()};
     c.write()?;
     Ok(())
 }
@@ -152,7 +160,7 @@ fn main() -> Result<()> {
         let c = Config {
             artist_full: vec![],
             artist_names: vec![],
-            last_checked_time: Some(OffsetDateTime::now_utc().date())
+            last_checked_time: OffsetDateTime::now_utc().date(),
         };
         c.write()?;
     } else {
