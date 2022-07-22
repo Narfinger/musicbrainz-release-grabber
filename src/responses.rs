@@ -84,16 +84,18 @@ impl Artist {
             .into_iter()
             .filter(|a| a.status == Status::Official)
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
-            .filter(|a| a.date.is_some())
-            .map(|a| Album {
-                artist: self.name.to_owned(),
-                title: a.title,
-                date: a.date.and_then(|d| Date::parse(&d, &format).ok()),
-            })
+            .map(|a: ReleasesResponse| {
+                let date = a.release_group.first_release_date.or(a.date).and_then(|s| Date::parse(&s, &format).ok());
+                Album {
+                    id: a.id,
+                    artist: self.name.to_owned(),
+                    title: a.title,
+                    date,
+            }})
             .collect::<Vec<_>>();
         albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
         albs.dedup_by(|a, b| a.title.eq(&b.title));
-        albs.sort_by_key(|a| a.date.clone());
+        albs.sort_by_key(|a| a.date);
         Ok(albs)
     }
 }
@@ -111,6 +113,8 @@ struct LookupResponse {
 struct ReleaseGroup {
     #[serde(rename = "primary-type")]
     primary_type: ReleaseType,
+    #[serde(rename = "first-release-date")]
+    first_release_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -131,6 +135,7 @@ enum ReleaseType {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ReleasesResponse {
+    id: Uuid,
     date: Option<String>,
     status: Status,
     title: String,
@@ -140,6 +145,7 @@ struct ReleasesResponse {
 
 #[derive(Debug)]
 pub(crate) struct Album {
+    pub(crate) id: Uuid,
     pub(crate) artist: String,
     pub(crate) title: String,
     pub(crate) date: Option<Date>,

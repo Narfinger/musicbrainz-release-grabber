@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use time::Date;
 use time::OffsetDateTime;
 use time::format_description;
+use uuid::Uuid;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -21,6 +22,18 @@ struct Config {
     artist_names: Vec<String>,
     artist_full: Vec<Artist>,
     last_checked_time: Date,
+    ignore_ids: Vec<Uuid>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            artist_full: vec![],
+            artist_names: vec![],
+            last_checked_time: OffsetDateTime::now_utc().date(),
+            ignore_ids: vec![],
+        }
+    }
 }
 
 impl Config {
@@ -85,7 +98,7 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
     println!("Found {} new albums", a.len());
     let format = format_description::parse("[year]-[month]-[day]")?;
     for i in a {
-        let date:String = i.date.and_then(|d| d.format(&format).ok()).unwrap_or("NONE".to_string());
+        let date:String = i.date.and_then(|d| d.format(&format).ok()).unwrap_or_else(|| "NONE".to_string());
         println!("{} - {} - {}", Red.paint(&i.artist), Blue.paint(&date), Green.paint(&i.title));
     }
     Ok(())
@@ -108,10 +121,7 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 
     entries.sort();
 
-    let c = Config {
-        artist_names: entries,
-        artist_full: vec![],
-        last_checked_time: OffsetDateTime::now_utc().date()};
+    let c = Config { artist_names: entries, ..Default::default()};
     c.write()?;
     Ok(())
 }
@@ -157,11 +167,7 @@ fn main() -> Result<()> {
     } else if args.new {
         grab_new_releases()?;
     } else if args.config {
-        let c = Config {
-            artist_full: vec![],
-            artist_names: vec![],
-            last_checked_time: OffsetDateTime::now_utc().date(),
-        };
+        let c = Config::default();
         c.write()?;
     } else {
         let mut cmd = Args::command();
