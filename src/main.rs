@@ -1,12 +1,15 @@
 use ansi_term::Colour::{Blue, Green, Red};
+use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
 use clap::CommandFactory;
 use clap::Parser;
+use clap::ValueEnum;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
 use std::{
@@ -63,7 +66,11 @@ fn get_artist_ids() -> Result<()> {
         .user_agent("MusicbrainzReleaseGrabber")
         .build()?;
     let mut c = Config::read()?;
-    c.artist_full.clear();
+
+
+    //c.artist_full.clear();
+    let already_found_artists: HashSet<String> = c.artist_full.iter().map(|a| a.name.clone()).collect();
+    let artist_names: HashSet<String> = c.artist_names.iter().cloned().collect();
 
     let mut error_artist = Vec::new();
 
@@ -74,7 +81,7 @@ fn get_artist_ids() -> Result<()> {
             .progress_chars("##-"),
     );
 
-    for i in c.artist_names.iter().progress_with(pb) {
+    for i in artist_names.difference(&already_found_artists).progress_with(pb) {
         match Artist::new(&client, i) {
             Ok(a) => c.artist_full.push(a),
             Err(e) => {
@@ -162,6 +169,13 @@ fn get_artists(dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
+enum ClearValues {
+    Ids,
+    Artists,
+    WholeConfig,
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -177,9 +191,9 @@ struct Args {
     #[clap(short, long)]
     new: bool,
 
-    /// Write config
-    #[clap(short, long)]
-    config: bool,
+    /// Clear config values
+    #[clap(short, long, value_enum)]
+    clear: Option<ClearValues>,
 }
 
 fn valid_dir(s: &str) -> Result<PathBuf, String> {
@@ -202,9 +216,17 @@ fn main() -> Result<()> {
         get_artist_ids()?;
     } else if args.new {
         grab_new_releases()?;
-    } else if args.config {
-        let c = Config::default();
-        c.write()?;
+    } else if let Some(cl) = args.clear {
+        if cl==ClearValues::WholeConfig {
+            let c = Config::default();
+            return c.write()
+        }
+        let mut c = Config::read()?;
+        match cl {
+            ClearValues::Ids => c.artist_full= vec![],
+            ClearValues::Artists => c.artist_names = vec![],
+            ClearValues::WholeConfig => bail!("This should never happen"),
+        }
     } else {
         let mut cmd = Args::command();
         cmd.print_help()?;
