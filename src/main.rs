@@ -67,9 +67,9 @@ fn get_artist_ids() -> Result<()> {
         .build()?;
     let mut c = Config::read()?;
 
-
     //c.artist_full.clear();
-    let already_found_artists: HashSet<String> = c.artist_full.iter().map(|a| a.name.clone()).collect();
+    let already_found_artists: HashSet<String> =
+        c.artist_full.iter().map(|a| a.name.clone()).collect();
     let artist_names: HashSet<String> = c.artist_names.iter().cloned().collect();
 
     let mut error_artist = Vec::new();
@@ -81,12 +81,13 @@ fn get_artist_ids() -> Result<()> {
             .progress_chars("##-"),
     );
 
-    for i in artist_names.difference(&already_found_artists).progress_with(pb) {
+    for i in artist_names
+        .difference(&already_found_artists)
+        .progress_with(pb)
+    {
         match Artist::new(&client, i) {
             Ok(a) => c.artist_full.push(a),
-            Err(e) => {
-                error_artist.push(format!("{} with error {:?}", i, e))
-            }
+            Err(e) => error_artist.push(format!("{} with error {:?}", i, e)),
         }
         thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
     }
@@ -100,6 +101,16 @@ fn get_artist_ids() -> Result<()> {
         }
     }
 
+    println!("Artist where we found differences");
+    for a in c.artist_full {
+        if a.name != a.search_string {
+            println!(
+                "Artist difference name: \"{}\" search: \"{}\"",
+                a.name, a.search_string
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -109,8 +120,14 @@ fn grab_new_releases() -> Result<()> {
         .build()?;
 
     let mut c = Config::read()?;
+    let pb = ProgressBar::new(c.artist_names.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .progress_chars("##-"),
+    );
     let mut all_albums: Vec<Album> = Vec::new();
-    for a in c.artist_full.iter().progress() {
+    for a in c.artist_full.iter().progress_with(pb) {
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
         thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
@@ -218,13 +235,13 @@ fn main() -> Result<()> {
     } else if args.new {
         grab_new_releases()?;
     } else if let Some(cl) = args.clear {
-        if cl==ClearValues::WholeConfig {
+        if cl == ClearValues::WholeConfig {
             let c = Config::default();
-            return c.write()
+            return c.write();
         }
         let mut c = Config::read()?;
         match cl {
-            ClearValues::Ids => c.artist_full= vec![],
+            ClearValues::Ids => c.artist_full = vec![],
             ClearValues::Artists => c.artist_names = vec![],
             ClearValues::WholeConfig => bail!("This should never happen"),
         }

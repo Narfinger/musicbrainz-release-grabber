@@ -15,7 +15,6 @@ struct SearchResponse {
     artists: Vec<ArtistsResponse>,
 }
 
-
 /// Artists from musicbrainz
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Artist {
@@ -26,7 +25,6 @@ pub(crate) struct Artist {
     /// The original search string, i.e., the directory. Good to see where our search went wrong
     pub(crate) search_string: String,
 }
-
 
 /// Album that got released
 #[derive(Debug)]
@@ -39,11 +37,11 @@ pub(crate) struct Album {
 
 impl Artist {
     pub(crate) fn new(client: &Client, s: &str) -> Result<Self> {
-        let s = String::from(s).replace(' ', "%20");
+        let s_rep = String::from(s).replace(' ', "%20");
         let resp: SearchResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
-                s
+                s_rep
             ))
             .send()
             .context("Error in getting artist id")?
@@ -52,7 +50,7 @@ impl Artist {
             .json()
             .context("Error in decoding artist id response")?;
 
-        if resp.artists.len()==0 {
+        if resp.artists.len() == 0 {
             Err(anyhow!("could not find UUID for {}", s))
         } else {
             let id = Uuid::parse_str(&resp.artists[0].id).context("Error in parsing uuid")?;
