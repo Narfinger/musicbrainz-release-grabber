@@ -15,10 +15,26 @@ struct SearchResponse {
     artists: Vec<ArtistsResponse>,
 }
 
+
+/// Artists from musicbrainz
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct Artist {
+    /// Artist String from musicbrainz
     pub(crate) name: String,
+    /// Musicbrainz Artist UUID
     pub(crate) id: Uuid,
+    /// The original search string, i.e., the directory. Good to see where our search went wrong
+    pub(crate) search_string: String,
+}
+
+
+/// Album that got released
+#[derive(Debug)]
+pub(crate) struct Album {
+    pub(crate) id: Uuid,
+    pub(crate) artist: String,
+    pub(crate) title: String,
+    pub(crate) date: Option<Date>,
 }
 
 impl Artist {
@@ -36,11 +52,16 @@ impl Artist {
             .json()
             .context("Error in decoding artist id response")?;
 
-        let id = Uuid::parse_str(&resp.artists[0].id).context("Error in parsing uuid")?;
-        Ok(Artist {
-            name: resp.artists[0].name.clone(),
-            id,
-        })
+        if resp.artists.len()==0 {
+            Err(anyhow!("could not find UUID for {}", s))
+        } else {
+            let id = Uuid::parse_str(&resp.artists[0].id).context("Error in parsing uuid")?;
+            Ok(Artist {
+                name: resp.artists[0].name.clone(),
+                id,
+                search_string: s.to_owned(),
+            })
+        }
     }
 
     fn get_albums(&self, client: &Client) -> Result<Vec<ReleasesResponse>> {
@@ -149,12 +170,4 @@ struct ReleasesResponse {
     title: String,
     #[serde(rename = "release-group")]
     release_group: ReleaseGroup,
-}
-
-#[derive(Debug)]
-pub(crate) struct Album {
-    pub(crate) id: Uuid,
-    pub(crate) artist: String,
-    pub(crate) title: String,
-    pub(crate) date: Option<Date>,
 }

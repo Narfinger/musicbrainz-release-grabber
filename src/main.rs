@@ -113,6 +113,7 @@ fn grab_new_releases() -> Result<()> {
     for a in c.artist_full.iter().progress() {
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
+        thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
     }
 
     println!("Filtering results");
