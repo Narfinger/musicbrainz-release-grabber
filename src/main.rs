@@ -150,7 +150,7 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
     let p = PathBuf::from_str(s).map_err(|_| "Not a valid directory description".to_string())?;
     if !p.exists() {
         Err("Directory does not exist".to_string())
-    } else if p.is_dir() {
+    } else if !p.is_dir() {
         Err("Not a directory".to_string())
     } else {
         Ok(p)
