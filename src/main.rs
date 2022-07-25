@@ -7,6 +7,8 @@ use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
+use std::thread;
+use std::time::Duration;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -73,11 +75,13 @@ fn get_artist_ids() -> Result<()> {
     );
 
     for i in c.artist_names.iter().progress_with(pb) {
-        if let Ok(a) = Artist::new(&client, i) {
-            c.artist_full.push(a);
-        } else {
-            error_artist.push(i);
+        match Artist::new(&client, i) {
+            Ok(a) => c.artist_full.push(a),
+            Err(e) => {
+                error_artist.push(format!("{} with error {:?}", i, e))
+            }
         }
+        thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
     }
     println!("Writing artists we found");
     c.write()?;
@@ -145,6 +149,7 @@ fn get_artists(dir: PathBuf) -> Result<()> {
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
+        .filter(|r| !r.contains("-") && !r.contains("Best") && !r.contains("Greatest"))
         .collect::<Vec<String>>();
 
     entries.sort();

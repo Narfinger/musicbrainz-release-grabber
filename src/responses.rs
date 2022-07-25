@@ -36,7 +36,7 @@ impl Artist {
             .json()
             .context("Error in decoding artist id response")?;
 
-        let id = Uuid::parse_str(&resp.artists[0].id)?;
+        let id = Uuid::parse_str(&resp.artists[0].id).context("Error in parsing uuid")?;
         Ok(Artist {
             name: resp.artists[0].name.clone(),
             id,
