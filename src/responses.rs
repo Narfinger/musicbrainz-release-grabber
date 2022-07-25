@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use time::{format_description, Date};
@@ -96,6 +96,21 @@ impl Artist {
             );
             all_releases.append(&mut resp.releases);
         }
+
+        /*
+        let res = resp.text().unwrap();
+        let jd = &mut serde_json::Deserializer::from_str(&res);
+
+        let mut resp: Result<LookupResponse, _> = serde_path_to_error::deserialize(jd);
+        match resp {
+            Ok(_) => (),
+            Err(err) => {
+                println!("{} {}", err.path().to_string(), err.to_string());
+                bail!("this is error");
+            }
+        }
+         */
+
         Ok(all_releases)
     }
 
@@ -104,7 +119,7 @@ impl Artist {
         let format = format_description::parse("[year]-[month]-[day]")?;
         let mut albs = albs_resp
             .into_iter()
-            .filter(|a| a.status == Status::Official)
+            .filter(|a| a.status == Some(Status::Official))
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
             .map(|a: ReleasesResponse| {
                 let date = a
@@ -127,7 +142,7 @@ impl Artist {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct LookupResponse {
     #[serde(rename = "release-offset")]
     release_offset: Option<usize>,
@@ -136,7 +151,7 @@ struct LookupResponse {
     releases: Vec<ReleasesResponse>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleaseGroup {
     #[serde(rename = "primary-type")]
     primary_type: ReleaseType,
@@ -144,15 +159,17 @@ struct ReleaseGroup {
     first_release_date: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 enum Status {
     Official,
     Promotion,
     Bootleg,
-    Pseudo_Release,
+    #[serde(rename = "Pseudo Release")]
+    PseudoRelease,
+    WithDrawn,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 enum ReleaseType {
     EP,
     Album,
@@ -160,11 +177,11 @@ enum ReleaseType {
     Other,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleasesResponse {
     id: Uuid,
     date: Option<String>,
-    status: Status,
+    status: Option<Status>,
     title: String,
     #[serde(rename = "release-group")]
     release_group: ReleaseGroup,

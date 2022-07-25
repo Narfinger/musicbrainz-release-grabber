@@ -127,7 +127,9 @@ fn grab_new_releases() -> Result<()> {
             .progress_chars("##-"),
     );
     let mut all_albums: Vec<Album> = Vec::new();
-    for a in c.artist_full.iter().progress_with(pb) {
+    //for a in c.artist_full.iter().progress_with(pb) {
+    for a in c.artist_full.iter() {
+        println!("artist {}", a.name);
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
         thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
