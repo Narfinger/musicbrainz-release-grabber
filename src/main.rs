@@ -7,15 +7,15 @@ use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
-use time::Date;
-use time::OffsetDateTime;
-use time::format_description;
-use uuid::Uuid;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
     str::FromStr,
 };
+use time::format_description;
+use time::Date;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
 pub mod responses;
 
@@ -51,7 +51,7 @@ impl Config {
     }
 
     fn now(&mut self) -> Result<()> {
-        self.last_checked_time=  OffsetDateTime::now_utc().date();
+        self.last_checked_time = OffsetDateTime::now_utc().date();
         self.write()
     }
 }
@@ -66,13 +66,14 @@ fn get_artist_ids() -> Result<()> {
     let mut error_artist = Vec::new();
 
     let pb = ProgressBar::new(c.artist_names.len() as u64);
-    pb.set_style(ProgressStyle::default_bar()
-    .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
-    .progress_chars("##-"));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .progress_chars("##-"),
+    );
 
     for i in c.artist_names.iter().progress_with(pb) {
         if let Ok(a) = Artist::new(&client, i) {
-
             c.artist_full.push(a);
         } else {
             error_artist.push(i);
@@ -81,7 +82,7 @@ fn get_artist_ids() -> Result<()> {
     println!("Writing artists we found");
     c.write()?;
 
-    if error_artist.len()>0 {
+    if error_artist.len() > 0 {
         println!("We did not find matching artist ids for the following artists");
         for i in error_artist {
             println!("{}", i);
@@ -121,8 +122,16 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
     println!("Found {} new albums", a.len());
     let format = format_description::parse("[year]-[month]-[day]")?;
     for i in a {
-        let date:String = i.date.and_then(|d| d.format(&format).ok()).unwrap_or_else(|| "NONE".to_string());
-        println!("{} - {} - {}", Red.paint(&i.artist), Blue.paint(&date), Green.paint(&i.title));
+        let date: String = i
+            .date
+            .and_then(|d| d.format(&format).ok())
+            .unwrap_or_else(|| "NONE".to_string());
+        println!(
+            "{} - {} - {}",
+            Red.paint(&i.artist),
+            Blue.paint(&date),
+            Green.paint(&i.title)
+        );
     }
     Ok(())
 }
@@ -135,16 +144,15 @@ fn get_artists(dir: PathBuf) -> Result<()> {
         .into_iter()
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
-        .filter_map(|p| {
-            p.file_name()
-                .and_then(|p| p.to_str())
-                .map(String::from)
-        })
+        .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
         .collect::<Vec<String>>();
 
     entries.sort();
 
-    let c = Config { artist_names: entries, ..Default::default()};
+    let c = Config {
+        artist_names: entries,
+        ..Default::default()
+    };
     c.write()?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use time::{Date, format_description};
+use time::{format_description, Date};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,6 +31,8 @@ impl Artist {
             ))
             .send()
             .context("Error in getting artist id")?
+            .error_for_status()
+            .context("Error in getting status")?
             .json()
             .context("Error in decoding artist id response")?;
 
@@ -50,6 +52,7 @@ impl Artist {
             ))
             .send()
             .context("Error in getting albums")?
+            .error_for_status()?
             .json()
             .context("Error in decoding albums")?;
         all_releases.append(&mut resp.releases);
@@ -85,13 +88,18 @@ impl Artist {
             .filter(|a| a.status == Status::Official)
             .filter(|a| a.release_group.primary_type == ReleaseType::Album)
             .map(|a: ReleasesResponse| {
-                let date = a.release_group.first_release_date.or(a.date).and_then(|s| Date::parse(&s, &format).ok());
+                let date = a
+                    .release_group
+                    .first_release_date
+                    .or(a.date)
+                    .and_then(|s| Date::parse(&s, &format).ok());
                 Album {
                     id: a.id,
                     artist: self.name.to_owned(),
                     title: a.title,
                     date,
-            }})
+                }
+            })
             .collect::<Vec<_>>();
         albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
         albs.dedup_by(|a, b| a.title.eq(&b.title));
