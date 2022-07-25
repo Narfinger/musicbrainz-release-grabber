@@ -2,7 +2,9 @@ use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::{anyhow, Context, Result};
 use clap::CommandFactory;
 use clap::Parser;
+use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
+use indicatif::ProgressStyle;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use time::Date;
@@ -60,11 +62,32 @@ fn get_artist_ids() -> Result<()> {
         .build()?;
     let mut c = Config::read()?;
     c.artist_full.clear();
-    for i in c.artist_names.iter().progress() {
-        let a = Artist::new(&client, i)?;
-        c.artist_full.push(a);
+
+    let mut error_artist = Vec::new();
+
+    let pb = ProgressBar::new(c.artist_names.len() as u64);
+    pb.set_style(ProgressStyle::default_bar()
+    .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+    .progress_chars("##-"));
+
+    for i in c.artist_names.iter().progress_with(pb) {
+        if let Ok(a) = Artist::new(&client, i) {
+
+            c.artist_full.push(a);
+        } else {
+            error_artist.push(i);
+        }
     }
+    println!("Writing artists we found");
     c.write()?;
+
+    if error_artist.len()>0 {
+        println!("We did not find matching artist ids for the following artists");
+        for i in error_artist {
+            println!("{}", i);
+        }
+    }
+
     Ok(())
 }
 
