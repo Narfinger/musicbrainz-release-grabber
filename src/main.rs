@@ -141,6 +141,7 @@ fn grab_new_releases() -> Result<()> {
         .build()?;
 
     let mut c = Config::read()?;
+    println!("Finding new albums from {}", c.last_checked_time);
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
