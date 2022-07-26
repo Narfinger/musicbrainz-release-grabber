@@ -1,8 +1,14 @@
+use std::{thread, time::Duration};
+
 use anyhow::{anyhow, bail, Context, Result};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use time::{format_description, Date};
 use uuid::Uuid;
+
+/// Timeout we do between connections.
+/// This is intentionally large.
+pub(crate) const TIMEOUT: Duration = Duration::from_millis(1500);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ArtistsResponse {
@@ -50,7 +56,7 @@ impl Artist {
             .json()
             .context("Error in decoding artist id response")?;
 
-        if resp.artists.len() == 0 {
+        if resp.artists.is_empty() {
             Err(anyhow!("could not find UUID for {}", s))
         } else {
             let id = Uuid::parse_str(&resp.artists[0].id).context("Error in parsing uuid")?;
@@ -64,6 +70,26 @@ impl Artist {
 
     fn get_albums(&self, client: &Client) -> Result<Vec<ReleasesResponse>> {
         let mut all_releases = Vec::new();
+
+        if false {
+            let response = client
+            .get(format!(
+                "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
+                self.id
+            ))
+            .send()
+            .context("Error in getting albums")?
+            .error_for_status()?;
+            let res_cl = response.text();
+            let res_cl = res_cl.unwrap();
+            let jd = &mut serde_json::Deserializer::from_str(&res_cl);
+            let other_res: Result<LookupResponse, _> = serde_path_to_error::deserialize(jd);
+            if let Err(e) = other_res {
+                println!("{} {}", e.path(), e);
+                bail!("this is error");
+            }
+        }
+
         let mut resp: LookupResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
@@ -77,39 +103,20 @@ impl Artist {
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
+            thread::sleep(TIMEOUT);
             let response = client.get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
                 self.id,
                 all_releases.len(),
             ))
             .send()
-            .context("Error in getting albums step")?;
-            if !response.status().is_success() {
-                return Err(anyhow!("Found wrong status, code {}", response.status()));
-            }
+            .context("Error in getting albums step")?
+            .error_for_status()
+            .context("Error in getting status code")?;
 
             let mut resp: LookupResponse = response.json().context("Error in decoding albums")?;
-            println!(
-                "we have done: offset {}, release offset {}",
-                all_releases.len(),
-                resp.release_offset.unwrap_or(0)
-            );
             all_releases.append(&mut resp.releases);
         }
-
-        /*
-        let res = resp.text().unwrap();
-        let jd = &mut serde_json::Deserializer::from_str(&res);
-
-        let mut resp: Result<LookupResponse, _> = serde_path_to_error::deserialize(jd);
-        match resp {
-            Ok(_) => (),
-            Err(err) => {
-                println!("{} {}", err.path().to_string(), err.to_string());
-                bail!("this is error");
-            }
-        }
-         */
 
         Ok(all_releases)
     }
@@ -120,7 +127,7 @@ impl Artist {
         let mut albs = albs_resp
             .into_iter()
             .filter(|a| a.status == Some(Status::Official))
-            .filter(|a| a.release_group.primary_type == ReleaseType::Album)
+            .filter(|a| a.release_group.primary_type == Some(ReleaseType::Album))
             .map(|a: ReleasesResponse| {
                 let date = a
                     .release_group
@@ -154,7 +161,7 @@ struct LookupResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleaseGroup {
     #[serde(rename = "primary-type")]
-    primary_type: ReleaseType,
+    primary_type: Option<ReleaseType>,
     #[serde(rename = "first-release-date")]
     first_release_date: Option<String>,
 }
@@ -164,9 +171,10 @@ enum Status {
     Official,
     Promotion,
     Bootleg,
-    #[serde(rename = "Pseudo Release")]
+    #[serde(rename = "Pseudo-Release")]
     PseudoRelease,
-    WithDrawn,
+    Withdrawn,
+    Cancelled,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -175,6 +183,7 @@ enum ReleaseType {
     Album,
     Single,
     Other,
+    Broadcast,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

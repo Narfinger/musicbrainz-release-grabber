@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::CommandFactory;
 use clap::Parser;
 use clap::ValueEnum;
+use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
@@ -11,7 +12,6 @@ use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::thread;
-use std::time::Duration;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -45,18 +45,33 @@ impl Default for Config {
 
 impl Config {
     fn read() -> Result<Config> {
-        let s = fs::read_to_string("config.toml").context("Reading config file")?;
-        serde_json::from_str::<Config>(&s).context("Could not read config")
+        if let Some(project_dirs) =
+            ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
+        {
+            let dir = project_dirs.config_dir().with_file_name("config.toml");
+            let s = fs::read_to_string(dir).context("Reading config file")?;
+            serde_json::from_str::<Config>(&s).context("Could not read config")
+        } else {
+            Err(anyhow!("Could not find project dir"))
+        }
     }
 
     fn write(&self) -> Result<()> {
-        let str = serde_json::to_string_pretty(&self).context("Toml to string")?;
-        fs::write("config.toml", str).context("Writing string")?;
-        Ok(())
+        if let Some(project_dirs) =
+            ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
+        {
+            let dir = project_dirs.config_dir().with_file_name("config.toml");
+            let str = serde_json::to_string_pretty(&self).context("Toml to string")?;
+            fs::write(dir, str).context("Writing string")?;
+            Ok(())
+        } else {
+            Err(anyhow!("Could not find project dir"))
+        }
     }
 
     fn now(&mut self) -> Result<()> {
-        self.last_checked_time = OffsetDateTime::now_utc().date();
+        //remove one day just to be sure
+        self.last_checked_time = OffsetDateTime::now_utc().date() - time::Duration::DAY;
         self.write()
     }
 }
@@ -89,12 +104,12 @@ fn get_artist_ids() -> Result<()> {
             Ok(a) => c.artist_full.push(a),
             Err(e) => error_artist.push(format!("{} with error {:?}", i, e)),
         }
-        thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
+        thread::sleep(responses::TIMEOUT); //otherwise we are hammering the api too much.
     }
     println!("Writing artists we found");
     c.write()?;
 
-    if error_artist.len() > 0 {
+    if !error_artist.is_empty() {
         println!("We did not find matching artist ids for the following artists");
         for i in error_artist {
             println!("{}", i);
@@ -127,18 +142,18 @@ fn grab_new_releases() -> Result<()> {
             .progress_chars("##-"),
     );
     let mut all_albums: Vec<Album> = Vec::new();
-    //for a in c.artist_full.iter().progress_with(pb) {
-    for a in c.artist_full.iter() {
-        println!("artist {}", a.name);
+    for a in c.artist_full.iter().progress_with(pb) {
+        //for a in c.artist_full.iter() {
+        //    println!("artist {}", a.name);
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
-        thread::sleep(Duration::from_millis(500)); //otherwise we are hammering the api too much.
+        thread::sleep(responses::TIMEOUT); //otherwise we are hammering the api too much.
     }
 
     println!("Filtering results");
     let mut res = all_albums
         .iter()
-        .filter(|a| a.date.is_none() || a.date.unwrap() >= c.last_checked_time)
+        .filter(|a| a.date.is_some() && a.date.unwrap() >= c.last_checked_time)
         .collect::<Vec<&Album>>();
     res.sort_by_cached_key(|a| a.artist.clone());
 
@@ -176,7 +191,7 @@ fn get_artists(dir: PathBuf) -> Result<()> {
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
-        .filter(|r| !r.contains("-") && !r.contains("Best") && !r.contains("Greatest"))
+        .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
         .collect::<Vec<String>>();
 
     entries.sort();
