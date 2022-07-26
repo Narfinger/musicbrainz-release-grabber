@@ -173,8 +173,8 @@ fn grab_new_releases() -> Result<()> {
 
 fn print_new_albums(a: &[&Album]) -> Result<()> {
     println!("Found {} new albums", a.len());
+    let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
     let format = format_description::parse("[year]-[month]-[day]")?;
-    let today = time::OffsetDateTime::now_utc().date() + time::Duration::DAY;
     for i in a {
         let date: String = i
             .date
