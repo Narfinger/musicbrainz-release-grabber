@@ -11,6 +11,7 @@ use indicatif::ProgressStyle;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::fs::create_dir;
 use std::thread;
 use std::{
     fs::{self, read_dir},
@@ -48,7 +49,8 @@ impl Config {
         if let Some(project_dirs) =
             ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
         {
-            let dir = project_dirs.config_dir().with_file_name("config.toml");
+            let mut dir = project_dirs.config_dir().to_path_buf();
+            dir.push("config.toml");
             let s = fs::read_to_string(dir).context("Reading config file")?;
             serde_json::from_str::<Config>(&s).context("Could not read config")
         } else {
@@ -60,7 +62,11 @@ impl Config {
         if let Some(project_dirs) =
             ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
         {
-            let dir = project_dirs.config_dir().with_file_name("config.toml");
+            let mut dir = project_dirs.config_dir().to_path_buf();
+            if !dir.exists() {
+                create_dir(&dir)?;
+            }
+            dir.push("config.toml");
             let str = serde_json::to_string_pretty(&self).context("Toml to string")?;
             fs::write(dir, str).context("Writing string")?;
             Ok(())
