@@ -144,9 +144,10 @@ fn grab_new_releases() -> Result<()> {
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .template("[{spinner:.green}] [{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)")
             .progress_chars("##-"),
     );
+    pb.enable_steady_tick(500);
     let mut all_albums: Vec<Album> = Vec::new();
     for a in c.artist_full.iter().progress_with(pb) {
         //for a in c.artist_full.iter() {
