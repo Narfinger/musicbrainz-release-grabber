@@ -19,8 +19,8 @@ use std::{
     str::FromStr,
 };
 use time::format_description;
-use time::Date;
 use time::OffsetDateTime;
+use time::{Date, Duration};
 use uuid::Uuid;
 
 pub mod responses;
@@ -174,17 +174,27 @@ fn grab_new_releases() -> Result<()> {
 fn print_new_albums(a: &[&Album]) -> Result<()> {
     println!("Found {} new albums", a.len());
     let format = format_description::parse("[year]-[month]-[day]")?;
+    let today = time::OffsetDateTime::now_utc().date() + time::Duration::DAY;
     for i in a {
         let date: String = i
             .date
             .and_then(|d| d.format(&format).ok())
             .unwrap_or_else(|| "NONE".to_string());
-        println!(
-            "{} - {} - {}",
-            Red.paint(&i.artist),
-            Blue.paint(&date),
-            Green.paint(&i.title)
-        );
+        if i.date.is_some() && i.date.unwrap() >= today {
+            println!(
+                "{} - {} - {}",
+                Red.strikethrough().paint(&i.artist),
+                Blue.strikethrough().paint(&date),
+                Green.strikethrough().paint(&i.title)
+            )
+        } else {
+            println!(
+                "{} - {} - {}",
+                Red.paint(&i.artist),
+                Blue.paint(&date),
+                Green.paint(&i.title)
+            );
+        }
     }
     Ok(())
 }
