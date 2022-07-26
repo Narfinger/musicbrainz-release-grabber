@@ -50,7 +50,7 @@ impl Config {
             ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
         {
             let mut dir = project_dirs.config_dir().to_path_buf();
-            dir.push("config.toml");
+            dir.push("config.json");
             let s = fs::read_to_string(dir).context("Reading config file")?;
             serde_json::from_str::<Config>(&s).context("Could not read config")
         } else {
@@ -66,8 +66,8 @@ impl Config {
             if !dir.exists() {
                 create_dir(&dir)?;
             }
-            dir.push("config.toml");
-            let str = serde_json::to_string_pretty(&self).context("Toml to string")?;
+            dir.push("config.json");
+            let str = serde_json::to_string_pretty(&self).context("JSON to string")?;
             fs::write(dir, str).context("Writing string")?;
             Ok(())
         } else {
