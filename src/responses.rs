@@ -141,6 +141,7 @@ impl Artist {
                     date,
                 }
             })
+            .filter(|a| a.date.is_some())
             .collect::<Vec<_>>();
         albs.sort_by_key(|a| a.title.clone()); // this is necessary to remove all duplicated elements
         albs.dedup_by(|a, b| a.title.eq(&b.title));
