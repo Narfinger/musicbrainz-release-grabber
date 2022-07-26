@@ -78,7 +78,7 @@ impl Config {
 
 fn get_artist_ids() -> Result<()> {
     let client = reqwest::blocking::ClientBuilder::new()
-        .user_agent("MusicbrainzReleaseGrabber")
+        .user_agent("MusicbrainzReleaseGrabber com.github.narfinger")
         .build()?;
     let mut c = Config::read()?;
 
