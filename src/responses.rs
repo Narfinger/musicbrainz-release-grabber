@@ -22,7 +22,7 @@ struct SearchResponse {
 }
 
 /// Artists from musicbrainz
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq)]
 pub(crate) struct Artist {
     /// Artist String from musicbrainz
     pub(crate) name: String,
@@ -32,13 +32,55 @@ pub(crate) struct Artist {
     pub(crate) search_string: String,
 }
 
+impl PartialEq for Artist {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl PartialOrd for Artist {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
+}
+
+impl Ord for Artist {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
 /// Album that got released
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 pub(crate) struct Album {
     pub(crate) id: Uuid,
     pub(crate) artist: String,
     pub(crate) title: String,
     pub(crate) date: Option<Date>,
+}
+
+impl PartialEq for Album {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl PartialOrd for Album {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.artist
+            .partial_cmp(&other.artist)
+            .or(self.date.partial_cmp(&other.date))
+            .or(self.title.partial_cmp(&other.title))
+    }
+}
+
+impl Ord for Album {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.artist
+            .cmp(&other.artist)
+            .then(self.date.cmp(&other.date))
+            .then(self.title.cmp(&other.title))
+    }
 }
 
 impl Artist {

@@ -112,6 +112,7 @@ fn get_artist_ids() -> Result<()> {
         }
         thread::sleep(responses::TIMEOUT); //otherwise we are hammering the api too much.
     }
+    c.artist_full.sort_unstable();
     println!("Writing artists we found");
     c.write()?;
 
@@ -163,7 +164,7 @@ fn grab_new_releases() -> Result<()> {
         .iter()
         .filter(|a| a.date.is_some() && a.date.unwrap() >= c.last_checked_time)
         .collect::<Vec<&Album>>();
-    res.sort_by_cached_key(|a| a.artist.clone());
+    res.sort_unstable();
 
     print_new_albums(&res)?;
 
@@ -212,7 +213,7 @@ fn get_artists(dir: PathBuf) -> Result<()> {
         .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
         .collect::<Vec<String>>();
 
-    entries.sort();
+    entries.sort_unstable();
 
     let c = Config {
         artist_names: entries,
