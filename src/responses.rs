@@ -69,8 +69,8 @@ impl PartialOrd for Album {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.artist
             .partial_cmp(&other.artist)
-            .or(self.date.partial_cmp(&other.date))
-            .or(self.title.partial_cmp(&other.title))
+            .or_else(|| self.date.partial_cmp(&other.date))
+            .or_else(|| self.title.partial_cmp(&other.title))
     }
 }
 

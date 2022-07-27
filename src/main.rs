@@ -83,9 +83,7 @@ impl Config {
 }
 
 fn get_artist_ids() -> Result<()> {
-    let client = reqwest::blocking::ClientBuilder::new()
-        .user_agent("MusicbrainzReleaseGrabber com.github.narfinger")
-        .build()?;
+    let client = get_client()?;
     let mut c = Config::read()?;
 
     //c.artist_full.clear();
@@ -137,9 +135,7 @@ fn get_artist_ids() -> Result<()> {
 }
 
 fn grab_new_releases() -> Result<()> {
-    let client = reqwest::blocking::ClientBuilder::new()
-        .user_agent("MusicbrainzReleaseGrabber")
-        .build()?;
+    let client = get_client()?;
 
     let mut c = Config::read()?;
     println!("Finding new albums from {}", c.last_checked_time);
@@ -171,6 +167,13 @@ fn grab_new_releases() -> Result<()> {
     // updateing config
     c.now()?;
     Ok(())
+}
+
+fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
+    reqwest::blocking::ClientBuilder::new()
+        .user_agent("MusicbrainzReleaseGrabber")
+        .build()
+        .context("Could not build client")
 }
 
 fn print_new_albums(a: &[&Album]) -> Result<()> {
@@ -248,6 +251,10 @@ struct Args {
     /// Clear config values
     #[clap(short, long, value_enum)]
     clear: Option<ClearValues>,
+
+    /// Adds an artist to our list
+    #[clap(long, value_name="artist")]
+    add: Option<String>
 }
 
 fn valid_dir(s: &str) -> Result<PathBuf, String> {
@@ -281,6 +288,14 @@ fn main() -> Result<()> {
             ClearValues::Artists => c.artist_names = vec![],
             ClearValues::WholeConfig => bail!("This should never happen"),
         }
+    } else if let Some(artist) = args.add {
+        let mut c = Config::read()?;
+        let client = get_client()?;
+        let a = Artist::new(&client, &artist)?;
+        println!("Found artist {} for search {}", a.name, a.search_string);
+        c.artist_full.push(a);
+        c.artist_full.sort_unstable();
+        c.write()?;
     } else {
         let mut cmd = Args::command();
         cmd.print_help()?;
