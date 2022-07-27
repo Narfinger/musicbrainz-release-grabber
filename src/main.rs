@@ -1,7 +1,7 @@
 use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
-use clap::CommandFactory;
+use clap::{CommandFactory, Subcommand};
 use clap::Parser;
 use clap::ValueEnum;
 use directories::ProjectDirs;
@@ -233,12 +233,28 @@ enum ClearValues {
     WholeConfig,
 }
 
+#[derive(Debug,Subcommand)]
+enum ArtistCommands {
+    /// Adds an artist to our list
+    Add{
+        name: String
+    },
+
+    /// List artists
+    List,
+
+    /// Delete an artist
+    Delete{
+        name: String
+    }
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Get the artists from a file
     #[clap(short, long, value_parser =valid_dir, value_name = "DIR")]
-    artists: Option<PathBuf>,
+    music_dir: Option<PathBuf>,
 
     /// get artists ids
     #[clap(short, long)]
@@ -252,9 +268,8 @@ struct Args {
     #[clap(short, long, value_enum)]
     clear: Option<ClearValues>,
 
-    /// Adds an artist to our list
-    #[clap(long, value_name="artist")]
-    add: Option<String>
+    #[clap(subcommand)]
+    artists: Option<ArtistCommands>,
 }
 
 fn valid_dir(s: &str) -> Result<PathBuf, String> {
@@ -270,7 +285,7 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    if let Some(path) = args.artists {
+    if let Some(path) = args.music_dir {
         println!("Getting artists");
         get_artists(path)?;
     } else if args.ids {
@@ -288,18 +303,29 @@ fn main() -> Result<()> {
             ClearValues::Artists => c.artist_names = vec![],
             ClearValues::WholeConfig => bail!("This should never happen"),
         }
-    } else if let Some(artist) = args.add {
+    } else if let Some(cmd) = args.artists {
         let mut c = Config::read()?;
-        let client = get_client()?;
-        let a = Artist::new(&client, &artist)?;
-        println!("Found artist {} for search {}", a.name, a.search_string);
-        c.artist_full.push(a);
-        c.artist_full.sort_unstable();
-        c.write()?;
-    } else {
-        let mut cmd = Args::command();
-        cmd.print_help()?;
+        match cmd {
+            ArtistCommands::Add { name } => {
+                let client = get_client()?;
+                let a = Artist::new(&client, &name)?;
+                println!("Found artist {} for search {}", a.name, a.search_string);
+                c.artist_full.push(a);
+                c.artist_full.sort_unstable();
+                c.write()?;
+            },
+            ArtistCommands::List => {
+                for i in c.artist_full {
+                    println!("{}", i.name);
+                }
+            },
+            ArtistCommands::Delete { name } => {
+                c.artist_full.retain(|a| a.name!= name);
+                c.write()?;
+            },
+        }
     }
+
 
     Ok(())
 }
