@@ -1,14 +1,17 @@
-use std::{thread, time::Duration};
+use std::thread;
 
 use anyhow::{anyhow, bail, Context, Result};
+use lazy_static::lazy_static;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use time::{format_description, Date};
+use time::{format_description, Date, Duration};
 use uuid::Uuid;
 
-/// Timeout we do between connections.
-/// This is intentionally large.
-pub(crate) const TIMEOUT: Duration = Duration::from_millis(1500);
+lazy_static! {
+    /// Timeout we do between connections.
+    /// This is intentionally large.
+    pub(crate) static ref TIMEOUT: Duration = Duration::SECOND + Duration::SECOND * 0.5;
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ArtistsResponse {
@@ -145,7 +148,7 @@ impl Artist {
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
-            thread::sleep(TIMEOUT);
+            thread::sleep(TIMEOUT.unsigned_abs());
             let response = client.get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
                 self.id,

@@ -1,9 +1,9 @@
 use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
-use clap::{CommandFactory, Subcommand};
 use clap::Parser;
 use clap::ValueEnum;
+use clap::{CommandFactory, Subcommand};
 use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
@@ -22,6 +22,8 @@ use time::format_description;
 use time::OffsetDateTime;
 use time::{Date, Duration};
 use uuid::Uuid;
+
+use crate::responses::TIMEOUT;
 
 pub mod responses;
 
@@ -93,6 +95,9 @@ fn get_artist_ids() -> Result<()> {
 
     let mut error_artist = Vec::new();
 
+    let duration = TIMEOUT.checked_mul(artist_names.len() as i32).unwrap();
+    println!("Getting artists ids. This will take roughly {}", duration);
+
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -108,7 +113,7 @@ fn get_artist_ids() -> Result<()> {
             Ok(a) => c.artist_full.push(a),
             Err(e) => error_artist.push(format!("{} with error {:?}", i, e)),
         }
-        thread::sleep(responses::TIMEOUT); //otherwise we are hammering the api too much.
+        thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
     }
     c.artist_full.sort_unstable();
     println!("Writing artists we found");
@@ -139,6 +144,8 @@ fn grab_new_releases() -> Result<()> {
 
     let mut c = Config::read()?;
     println!("Finding new albums from {}", c.last_checked_time);
+    let duration = TIMEOUT.checked_mul(c.artist_full.len() as i32).unwrap();
+    println!("This will take at least {}", duration);
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -152,7 +159,7 @@ fn grab_new_releases() -> Result<()> {
         //    println!("artist {}", a.name);
         let mut albums = a.get_albums_basic_filtered(&client)?;
         all_albums.append(&mut albums);
-        thread::sleep(responses::TIMEOUT); //otherwise we are hammering the api too much.
+        thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
     }
 
     println!("Filtering results");
@@ -206,8 +213,9 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
 
 fn get_artists(dir: PathBuf) -> Result<()> {
     //let dir = PathBuf::from_str(&base_dir)?;
-    println!("Counting artists");
     let dir_count = read_dir(&dir)?.count();
+    let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
+    println!("Counting artists. This will take at least {}", dur);
     let mut entries = read_dir(&dir)?
         .into_iter()
         .progress_count(dir_count as u64)
@@ -233,20 +241,16 @@ enum ClearValues {
     WholeConfig,
 }
 
-#[derive(Debug,Subcommand)]
+#[derive(Debug, Subcommand)]
 enum ArtistCommands {
     /// Adds an artist to our list
-    Add{
-        name: String
-    },
+    Add { name: String },
 
     /// List artists
     List,
 
     /// Delete an artist
-    Delete{
-        name: String
-    }
+    Delete { name: String },
 }
 
 #[derive(Parser, Debug)]
@@ -313,19 +317,18 @@ fn main() -> Result<()> {
                 c.artist_full.push(a);
                 c.artist_full.sort_unstable();
                 c.write()?;
-            },
+            }
             ArtistCommands::List => {
                 for i in c.artist_full {
                     println!("{}", i.name);
                 }
-            },
+            }
             ArtistCommands::Delete { name } => {
-                c.artist_full.retain(|a| a.name!= name);
+                c.artist_full.retain(|a| a.name != name);
                 c.write()?;
-            },
+            }
         }
     }
-
 
     Ok(())
 }
