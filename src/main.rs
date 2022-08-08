@@ -27,6 +27,9 @@ use crate::responses::TIMEOUT;
 
 pub mod responses;
 
+const PROGRESS_STYLE: &str =
+    "[{spinner:.green}] [{elapsed}/{eta}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)";
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     artist_names: Vec<String>,
@@ -101,7 +104,7 @@ fn get_artist_ids() -> Result<()> {
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
+            .template(PROGRESS_STYLE)
             .progress_chars("##-"),
     );
 
@@ -149,7 +152,7 @@ fn grab_new_releases() -> Result<()> {
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("[{spinner:.green}] [{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)")
+            .template(PROGRESS_STYLE)
             .progress_chars("##-"),
     );
     pb.enable_steady_tick(500);
