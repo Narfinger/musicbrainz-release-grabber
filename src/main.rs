@@ -156,13 +156,23 @@ fn grab_new_releases() -> Result<()> {
             .progress_chars("##-"),
     );
     pb.enable_steady_tick(500);
+    let mut error_artists = Vec::new();
     let mut all_albums: Vec<Album> = Vec::new();
     for a in c.artist_full.iter().progress_with(pb) {
         //for a in c.artist_full.iter() {
         //    println!("artist {}", a.name);
-        let mut albums = a.get_albums_basic_filtered(&client)?;
-        all_albums.append(&mut albums);
+        if let Ok(mut albums) = a.get_albums_basic_filtered(&client) {
+            all_albums.append(&mut albums);
+        } else {
+            error_artists.push(a);
+        }
         thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
+    }
+    if !error_artists.is_empty() {
+        println!("Could not get all artists. Please check manually the following:");
+        for i in error_artists {
+            println!("{}", i.name);
+        }
     }
 
     println!("Filtering results");
