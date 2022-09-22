@@ -1,4 +1,3 @@
-use ansi_term::Colour::{Blue, Green, Red};
 use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
@@ -8,6 +7,7 @@ use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
+use nu_ansi_term::Color::{Blue, Green, Red};
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
