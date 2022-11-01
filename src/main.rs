@@ -247,6 +247,32 @@ fn get_artists(dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
+    let dir_count = read_dir(&dir)?.count();
+    let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
+    println!("Counting artists. This will take at least {}", dur);
+    let entries = read_dir(&dir)?
+        .into_iter()
+        .progress_count(dir_count as u64)
+        .filter_map(|res| res.map(|e| e.path()).ok())
+        .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
+        .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
+        .collect::<HashSet<String>>();
+
+    let config = Config::read()?;
+    let artist_in_config = config
+        .artist_names
+        .iter()
+        .cloned()
+        .collect::<HashSet<String>>();
+
+    println!("artists found in directory but not config");
+    for i in entries.difference(&artist_in_config) {
+        println!("{}", i);
+    }
+    Ok(())
+}
+
 #[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
 enum ClearValues {
     Ids,
@@ -255,7 +281,7 @@ enum ClearValues {
 }
 
 #[derive(Debug, Subcommand)]
-enum ArtistCommands {
+enum SubCommands {
     /// Adds an artist to our list
     Add { name: String },
 
@@ -264,6 +290,9 @@ enum ArtistCommands {
 
     /// Delete an artist
     Delete { name: String },
+
+    /// Find new albums
+    New,
 }
 
 #[derive(Parser, Debug)]
@@ -277,16 +306,16 @@ struct Args {
     #[clap(short, long)]
     ids: bool,
 
-    /// find new albums
-    #[clap(short, long)]
-    new: bool,
-
     /// Clear config values
     #[clap(short, long, value_enum)]
     clear: Option<ClearValues>,
 
     #[clap(subcommand)]
-    artists: Option<ArtistCommands>,
+    artists: Option<SubCommands>,
+
+    /// Artists not in config
+    #[clap(short, long, value_parser = valid_dir, value_name = "DIR")]
+    artists_not_in_config: Option<PathBuf>,
 }
 
 fn valid_dir(s: &str) -> Result<PathBuf, String> {
@@ -307,8 +336,6 @@ fn main() -> Result<()> {
         get_artists(path)?;
     } else if args.ids {
         get_artist_ids()?;
-    } else if args.new {
-        grab_new_releases()?;
     } else if let Some(cl) = args.clear {
         if cl == ClearValues::WholeConfig {
             let c = Config::default();
@@ -320,10 +347,12 @@ fn main() -> Result<()> {
             ClearValues::Artists => c.artist_names = vec![],
             ClearValues::WholeConfig => bail!("This should never happen"),
         }
+    } else if let Some(p) = args.artists_not_in_config {
+        artists_not_in_config(&p)?;
     } else if let Some(cmd) = args.artists {
         let mut c = Config::read()?;
         match cmd {
-            ArtistCommands::Add { name } => {
+            SubCommands::Add { name } => {
                 let client = get_client()?;
                 let a = Artist::new(&client, &name)?;
                 println!("Found artist {} for search {}", a.name, a.search_string);
@@ -331,14 +360,17 @@ fn main() -> Result<()> {
                 c.artist_full.sort_unstable();
                 c.write()?;
             }
-            ArtistCommands::List => {
+            SubCommands::List => {
                 for i in c.artist_full {
                     println!("{}", i.name);
                 }
             }
-            ArtistCommands::Delete { name } => {
+            SubCommands::Delete { name } => {
                 c.artist_full.retain(|a| a.name != name);
                 c.write()?;
+            }
+            SubCommands::New => {
+                grab_new_releases()?;
             }
         }
     }
