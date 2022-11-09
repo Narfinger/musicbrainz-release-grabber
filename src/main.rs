@@ -1,8 +1,8 @@
 use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use clap::Subcommand;
 use clap::ValueEnum;
-use clap::{CommandFactory, Subcommand};
 use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
@@ -19,8 +19,8 @@ use std::{
     str::FromStr,
 };
 use time::format_description;
+use time::Date;
 use time::OffsetDateTime;
-use time::{Date, Duration};
 use uuid::Uuid;
 
 use crate::responses::TIMEOUT;
@@ -32,8 +32,11 @@ const PROGRESS_STYLE: &str =
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
+    /// Artists names only, gotten from the directory
     artist_names: Vec<String>,
+    /// Artists we currently check
     artist_full: Vec<Artist>,
+    /// last time we checked for new
     last_checked_time: Date,
     ignore_ids: Vec<Uuid>,
 }
@@ -87,6 +90,7 @@ impl Config {
     }
 }
 
+/// get the artists ids for all artists in artist_names
 fn get_artist_ids() -> Result<()> {
     let client = get_client()?;
     let mut c = Config::read()?;
@@ -142,6 +146,7 @@ fn get_artist_ids() -> Result<()> {
     Ok(())
 }
 
+/// check for releases later then last checked date from artist_full
 fn grab_new_releases() -> Result<()> {
     let client = get_client()?;
 
@@ -189,6 +194,7 @@ fn grab_new_releases() -> Result<()> {
     Ok(())
 }
 
+/// create a reqwest client with correct http header
 fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
     reqwest::blocking::ClientBuilder::new()
         .user_agent("MusicbrainzReleaseGrabber")
@@ -196,6 +202,7 @@ fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
         .context("Could not build client")
 }
 
+/// Print all the albums we got in the vector in a nice way
 fn print_new_albums(a: &[&Album]) -> Result<()> {
     println!("Found {} new albums", a.len());
     let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
@@ -224,6 +231,7 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
     Ok(())
 }
 
+/// fill all artist_names into the config from a directory
 fn get_artists(dir: PathBuf) -> Result<()> {
     //let dir = PathBuf::from_str(&base_dir)?;
     let dir_count = read_dir(&dir)?.count();
@@ -247,11 +255,12 @@ fn get_artists(dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Find all artists that are in the directory `dir` but not in the config
 fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
-    let dir_count = read_dir(&dir)?.count();
+    let dir_count = read_dir(dir)?.count();
     let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
     println!("Counting artists. This will take at least {}", dur);
-    let entries = read_dir(&dir)?
+    let entries = read_dir(dir)?
         .into_iter()
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
@@ -261,14 +270,20 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
 
     let config = Config::read()?;
     let artist_in_config = config
-        .artist_names
-        .iter()
-        .cloned()
+        .artist_full
+        .into_iter()
+        .map(|a| a.name)
         .collect::<HashSet<String>>();
 
+    println!("a {:?}", artist_in_config);
     println!("artists found in directory but not config");
-    for i in entries.difference(&artist_in_config) {
-        println!("{}", i);
+    let mut res = entries
+        .difference(&artist_in_config)
+        .collect::<Vec<&String>>();
+    res.sort_unstable();
+
+    for i in res {
+        println!("\"{}\"", i);
     }
     Ok(())
 }
@@ -354,11 +369,18 @@ fn main() -> Result<()> {
         match cmd {
             SubCommands::Add { name } => {
                 let client = get_client()?;
-                let a = Artist::new(&client, &name)?;
-                println!("Found artist {} for search {}", a.name, a.search_string);
-                c.artist_full.push(a);
-                c.artist_full.sort_unstable();
-                c.write()?;
+                let new_artist = Artist::new(&client, &name)?;
+                println!(
+                    "Found artist {} for search {}",
+                    new_artist.name, new_artist.search_string
+                );
+                if c.artist_full.iter().any(|a| a.id == new_artist.id) {
+                    println!("Artist is already in the list");
+                } else {
+                    c.artist_full.push(new_artist);
+                    c.artist_full.sort_unstable();
+                    c.write()?;
+                }
             }
             SubCommands::List => {
                 for i in c.artist_full {
