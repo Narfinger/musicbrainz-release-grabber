@@ -222,9 +222,9 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
         } else {
             println!(
                 "{} - {} - {}",
-                Red.paint(&i.artist),
-                Blue.paint(&date),
-                Green.paint(&i.title)
+                Red.bold().paint(&i.artist),
+                Blue.bold().paint(&date),
+                Green.bold().paint(&i.title)
             );
         }
     }
