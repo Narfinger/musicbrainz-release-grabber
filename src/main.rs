@@ -266,13 +266,14 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
         .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
+        .map(|s| s.to_lowercase())
         .collect::<HashSet<String>>();
 
     let config = Config::read()?;
     let artist_in_config = config
         .artist_full
         .into_iter()
-        .map(|a| a.name)
+        .map(|a| a.name.to_lowercase())
         .collect::<HashSet<String>>();
 
     println!("a {:?}", artist_in_config);
