@@ -3,6 +3,9 @@ name = "musicbrainz-release-grabber"
 version = "0.2.1"
 edition = "2021"
 description = "Check if there are new albums on the musicbrainz release. Give it a folder and it will check the artist ids and save it. Now you can just ask for new releases whenever you want. Don't forget to edit the artists."
+categories = ["command-line-utilities"]
+repository = "https://github.com/Narfinger/musicbrainz-release-grabber"
+license = "GPL-3.0-only"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
