@@ -10,7 +10,8 @@ use uuid::Uuid;
 lazy_static! {
     /// Timeout we do between connections.
     /// This is intentionally large.
-    pub(crate) static ref TIMEOUT: Duration = Duration::SECOND + Duration::SECOND * 0.5;
+    pub(crate) static ref TIMEOUT: Duration = Duration::SECOND;
+    //pub(crate) static ref TIMEOUT: Duration = Duration::SECOND * 1.5;
 }
 
 #[derive(Debug, Serialize, Deserialize)]

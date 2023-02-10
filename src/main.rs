@@ -197,7 +197,7 @@ fn grab_new_releases() -> Result<()> {
 /// create a reqwest client with correct http header
 fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
     reqwest::blocking::ClientBuilder::new()
-        .user_agent("MusicbrainzReleaseGrabber")
+        .user_agent("MusicbrainzReleaseGrabber/1.0 ( https://github.com/narfinger )")
         .build()
         .context("Could not build client")
 }
