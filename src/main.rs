@@ -238,7 +238,6 @@ fn get_artists(dir: PathBuf) -> Result<()> {
     let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
     println!("Counting artists. This will take at least {}", dur);
     let mut entries = read_dir(&dir)?
-        .into_iter()
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
@@ -261,7 +260,6 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
     println!("Counting artists. This will take at least {}", dur);
     let entries = read_dir(dir)?
-        .into_iter()
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
