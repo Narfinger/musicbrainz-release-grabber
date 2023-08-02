@@ -256,7 +256,7 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 
 /// Find all artists that are in the directory `dir` but not in the config
 fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
-    const CHARS_TO_REMOVE: [char; 4] = ['/', '\'', '&', '.'];
+    const CHARS_TO_REMOVE: [char; 5] = ['/', '\'', '&', '.', '\''];
 
     let dir_count = read_dir(dir)?.count();
     let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
@@ -278,13 +278,10 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
 
     //remove non helpful characters from names
     for i in it.iter_mut() {
-        println!("{:?}", i);
         i.retain(|c| !CHARS_TO_REMOVE.contains(&c));
-        println!("{:?}", i);
     }
 
     let artist_in_config: HashSet<String> = HashSet::from_iter(it.into_iter());
-    println!("{:?}", artist_in_config);
 
     println!("artists found in directory but not config");
     let mut res = entries
