@@ -14,18 +14,20 @@ lazy_static! {
     //pub(crate) static ref TIMEOUT: Duration = Duration::SECOND * 1.5;
 }
 
+/// Json response for an artist
 #[derive(Debug, Serialize, Deserialize)]
 struct ArtistsResponse {
     id: String,
     name: String,
 }
 
+/// JSON response for a search query
 #[derive(Debug, Serialize, Deserialize)]
 struct SearchResponse {
     artists: Vec<ArtistsResponse>,
 }
 
-/// Artists from musicbrainz
+/// Artist from musicbrainz
 #[derive(Debug, Serialize, Deserialize, Eq)]
 pub(crate) struct Artist {
     /// Artist String from musicbrainz
@@ -57,9 +59,13 @@ impl Ord for Artist {
 /// Album that got released
 #[derive(Debug, Eq)]
 pub(crate) struct Album {
+    /// the uuid on musicbrainz
     pub(crate) id: Uuid,
+    /// the artist
     pub(crate) artist: String,
+    /// the title of the album
     pub(crate) title: String,
+    /// the date of the album
     pub(crate) date: Option<Date>,
 }
 
@@ -88,6 +94,7 @@ impl Ord for Album {
 }
 
 impl Artist {
+    /// Search for an artist given by string `s` and construct an artist object
     pub(crate) fn new(client: &Client, s: &str) -> Result<Self> {
         let s_rep = String::from(s).replace(' ', "%20");
         let resp: SearchResponse = client
@@ -114,6 +121,7 @@ impl Artist {
         }
     }
 
+    /// Get albums for this artist
     fn get_albums(&self, client: &Client) -> Result<Vec<ReleasesResponse>> {
         let mut all_releases = Vec::new();
 
@@ -167,6 +175,7 @@ impl Artist {
         Ok(all_releases)
     }
 
+    /// Filter albums by simple release type and returns the albums found
     pub(crate) fn get_albums_basic_filtered(&self, client: &Client) -> Result<Vec<Album>> {
         let albs_resp = self.get_albums(client)?;
         let format = format_description::parse("[year]-[month]-[day]")?;
@@ -196,6 +205,7 @@ impl Artist {
     }
 }
 
+/// JSON response for the releases lookup
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct LookupResponse {
     #[serde(rename = "release-offset")]
@@ -205,6 +215,7 @@ struct LookupResponse {
     releases: Vec<ReleasesResponse>,
 }
 
+/// JSON response for ReleaseGroup
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleaseGroup {
     #[serde(rename = "primary-type")]
@@ -213,6 +224,7 @@ struct ReleaseGroup {
     first_release_date: Option<String>,
 }
 
+/// type/status of release
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 enum Status {
     Official,
@@ -224,6 +236,7 @@ enum Status {
     Cancelled,
 }
 
+/// release type
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 enum ReleaseType {
     EP,
@@ -233,6 +246,7 @@ enum ReleaseType {
     Broadcast,
 }
 
+/// Json response for release
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleasesResponse {
     id: Uuid,
