@@ -176,6 +176,7 @@ impl Artist {
     }
 
     /// Filter albums by simple release type and returns the albums found
+    /// Notice that this filters out also albums that do not have a specific year-month-day release date in the db
     pub(crate) fn get_albums_basic_filtered(&self, client: &Client) -> Result<Vec<Album>> {
         let albs_resp = self.get_albums(client)?;
         let format = format_description::parse("[year]-[month]-[day]")?;

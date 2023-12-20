@@ -302,6 +302,24 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn get_specific_artists(str: &String) -> Result<()> {
+    let client = get_client()?;
+    let artist = Artist::new(&client, str)?;
+    println!("Foudn artist {}", artist.name);
+    let mut albums = artist.get_albums_basic_filtered(&client)?;
+    albums.sort_by_cached_key(|a| a.date);
+
+    for i in albums {
+        let format = format_description::parse("[year]-[month]-[day]")?;
+        let date: String = i
+            .date
+            .and_then(|d| d.format(&format).ok())
+            .unwrap_or_else(|| "NONE".to_string());
+        println!("{} - {}", Red.paint(date), Green.paint(i.title));
+    }
+    Ok(())
+}
+
 /// Which values to clear in the config
 #[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
 enum ClearValues {
@@ -348,6 +366,10 @@ struct Args {
     /// Artists not in config
     #[clap(short, long, value_parser = valid_dir, value_name = "DIR")]
     artists_not_in_config: Option<PathBuf>,
+
+    /// Search a specific artist and print complete discography
+    #[clap(short = 's', long)]
+    artist: Option<String>,
 }
 
 /// is this directory a valid direcotry
@@ -382,6 +404,8 @@ fn main() -> Result<()> {
         }
     } else if let Some(p) = args.artists_not_in_config {
         artists_not_in_config(&p)?;
+    } else if let Some(artist) = args.artist {
+        get_specific_artists(&artist)?;
     } else if let Some(cmd) = args.artists {
         let mut c = Config::read()?;
         match cmd {
