@@ -302,7 +302,7 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_specific_artists(str: &String) -> Result<()> {
+fn get_specific_artists(str: &str) -> Result<()> {
     let client = get_client()?;
     let artist = Artist::new(&client, str)?;
     println!("Foudn artist {}", artist.name);
