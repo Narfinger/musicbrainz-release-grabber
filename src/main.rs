@@ -8,7 +8,6 @@ use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use nu_ansi_term::Color::{Blue, Green, Red};
-use regex::Regex;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,7 +21,6 @@ use std::{
 use time::format_description;
 use time::Date;
 use time::OffsetDateTime;
-use uuid::Uuid;
 
 use crate::responses::TIMEOUT;
 
@@ -31,6 +29,8 @@ pub mod responses;
 /// Progress bar style
 const PROGRESS_STYLE: &str =
     "[{spinner:.green}] [{elapsed}/{eta}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)";
+
+const CHARS_TO_REMOVE: &[char; 3] = &['.', '&', '\''];
 
 /// The config struct
 #[derive(Debug, Serialize, Deserialize)]
@@ -41,8 +41,8 @@ struct Config {
     artist_full: Vec<Artist>,
     /// last time we checked for new
     last_checked_time: Date,
-    /// ids that we ignore
-    ignore_ids: Vec<Uuid>,
+    /// paths that we ignore
+    ignore_paths: Vec<String>,
 }
 
 impl Default for Config {
@@ -52,7 +52,7 @@ impl Default for Config {
             artist_full: vec![],
             artist_names: vec![],
             last_checked_time: OffsetDateTime::now_utc().date(),
-            ignore_ids: vec![],
+            ignore_paths: vec![],
         }
     }
 }
@@ -94,6 +94,21 @@ impl Config {
     fn now(&mut self) -> Result<()> {
         //remove one day just to be sure
         self.last_checked_time = OffsetDateTime::now_utc().date() - time::Duration::DAY;
+        self.write()
+    }
+
+    fn add_ignore(&mut self, p: PathBuf) -> Result<()> {
+        let s = p
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_lowercase()
+            .to_string()
+            .replace(CHARS_TO_REMOVE, "");
+        if self.ignore_paths.contains(&s) {
+            println!("Ignore already in place");
+        }
+        self.ignore_paths.push(s);
         self.write()
     }
 }
@@ -265,18 +280,17 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 /// Find all artists that are in the directory `dir` but not in the config
 fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     /// FIXME this whole thing needs less cloning
-    let chars_to_remove_regexp = Regex::new(r"\.\&\'")?;
-
     let dir_count = read_dir(dir)?.count();
     let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
     println!("Counting artists. This will take at least {}", dur);
     let dir_entries = read_dir(dir)?
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
+        .filter(|res| res.is_dir())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
         .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
         .map(|s| s.to_lowercase())
-        .map(|i| chars_to_remove_regexp.replace_all(&i, "").into())
+        .map(|i| i.replace(CHARS_TO_REMOVE, ""))
         .collect::<HashSet<String>>();
 
     let config = Config::read()?;
@@ -284,14 +298,18 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
         .artist_full
         .into_iter()
         .map(|a| a.name.to_lowercase())
-        .map(|i| chars_to_remove_regexp.replace_all(&i, "").into())
+        .map(|i| i.replace(CHARS_TO_REMOVE, ""))
         .collect::<Vec<String>>();
 
-    let mut res = {
-        // remove things that currently match
-        let c: HashSet<String> = HashSet::from_iter(artist_in_config.iter().cloned());
-        dir_entries.difference(&c).cloned().collect::<Vec<String>>()
-    };
+    // remove thigns that we do not need
+    let c: HashSet<String> = HashSet::from_iter(artist_in_config.iter().cloned());
+    let ignore = HashSet::from_iter(config.ignore_paths.iter());
+    let mut res = dir_entries
+        .difference(&c)
+        .collect::<HashSet<&String>>()
+        .difference(&ignore)
+        .cloned()
+        .collect::<Vec<&String>>();
 
     println!("artists found in directory but not config");
     res.sort_unstable();
@@ -342,6 +360,9 @@ enum SubCommands {
 
     /// Find new albums
     New,
+
+    /// Add To Ignore List
+    Ignore { name: PathBuf },
 }
 
 /// Arguments for the program
@@ -435,6 +456,9 @@ fn main() -> Result<()> {
             }
             SubCommands::New => {
                 grab_new_releases()?;
+            }
+            SubCommands::Ignore { name } => {
+                c.add_ignore(name)?;
             }
         }
     }
