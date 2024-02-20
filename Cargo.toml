@@ -10,7 +10,7 @@ license = "GPL-3.0-only"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.79"
+anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
 directories = "5.0.1"
 indicatif = "0.17.8"
