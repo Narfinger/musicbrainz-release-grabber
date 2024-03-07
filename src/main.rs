@@ -30,7 +30,7 @@ pub mod responses;
 const PROGRESS_STYLE: &str =
     "[{spinner:.green}] [{elapsed}/{eta}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)";
 
-const CHARS_TO_REMOVE: &[char; 3] = &['.', '&', '\''];
+const CHARS_TO_REMOVE: &[char; 4] = &['.', '&', '\'', '/'];
 
 /// The config struct
 #[derive(Debug, Serialize, Deserialize)]
@@ -289,7 +289,7 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
         .filter(|res| res.is_dir())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
         .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
-        .map(|s| s.to_lowercase())
+        .map(|s| s.to_ascii_lowercase())
         .map(|i| i.replace(CHARS_TO_REMOVE, ""))
         .collect::<HashSet<String>>();
 
@@ -297,7 +297,7 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     let artist_in_config = config
         .artist_full
         .into_iter()
-        .map(|a| a.name.to_lowercase())
+        .map(|a| a.name.to_ascii_lowercase())
         .map(|i| i.replace(CHARS_TO_REMOVE, ""))
         .collect::<Vec<String>>();
 
