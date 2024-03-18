@@ -1,4 +1,7 @@
-use std::thread;
+use std::{
+    fmt::{self, Display},
+    thread,
+};
 
 use anyhow::{anyhow, bail, Context, Result};
 use lazy_static::lazy_static;
@@ -67,6 +70,8 @@ pub(crate) struct Album {
     pub(crate) title: String,
     /// the date of the album
     pub(crate) date: Option<Date>,
+    /// type of the release
+    pub(crate) release_type: ReleaseType,
 }
 
 impl PartialEq for Album {
@@ -195,6 +200,12 @@ impl Artist {
                     artist: self.name.to_owned(),
                     title: a.title,
                     date,
+                    release_type: a
+                        .release_group
+                        .secondary_types
+                        .first()
+                        .unwrap_or(&ReleaseType::Album)
+                        .to_owned(),
                 }
             })
             .filter(|a| a.date.is_some())
@@ -223,6 +234,8 @@ struct ReleaseGroup {
     primary_type: Option<ReleaseType>,
     #[serde(rename = "first-release-date")]
     first_release_date: Option<String>,
+    #[serde(rename = "secondary-types")]
+    secondary_types: Vec<ReleaseType>,
 }
 
 /// type/status of release
@@ -239,12 +252,27 @@ enum Status {
 
 /// release type
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
-enum ReleaseType {
+pub(crate) enum ReleaseType {
+    None,
     EP,
     Album,
     Single,
     Other,
     Broadcast,
+    Compilation,
+    Spokenword,
+    Interview,
+    Soundtrack,
+    Audiobook,
+    Live,
+    Remix,
+    Demo,
+}
+
+impl Display for ReleaseType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 /// Json response for release

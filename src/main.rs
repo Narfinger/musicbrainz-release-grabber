@@ -7,7 +7,7 @@ use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
-use nu_ansi_term::Color::{Blue, Green, Red};
+use nu_ansi_term::Color::{Blue, Green, Red, Yellow};
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -189,10 +189,12 @@ fn grab_new_releases() -> Result<()> {
     for a in c.artist_full.iter().progress_with(pb) {
         //for a in c.artist_full.iter() {
         //    println!("artist {}", a.name);
-        if let Ok(mut albums) = a.get_albums_basic_filtered(&client) {
+        let res = a.get_albums_basic_filtered(&client);
+        if let Ok(mut albums) = res {
             all_albums.append(&mut albums);
         } else {
             error_artists.push(a);
+            println!("re {:?}", res);
         }
         thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
     }
@@ -237,17 +239,19 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
             .unwrap_or_else(|| "NONE".to_string());
         if i.date.is_some() && i.date.unwrap() >= today {
             println!(
-                "{} - {} - {}",
+                "{} - {} - {} - ({})",
                 Red.strikethrough().paint(&i.artist),
                 Blue.strikethrough().paint(&date),
-                Green.strikethrough().paint(&i.title)
+                Green.strikethrough().paint(&i.title),
+                Yellow.strikethrough().paint(&i.release_type.to_string()),
             )
         } else {
             println!(
-                "{} - {} - {}",
+                "{} - {} - {} - ({})",
                 Red.bold().paint(&i.artist),
                 Blue.bold().paint(&date),
-                Green.bold().paint(&i.title)
+                Green.bold().paint(&i.title),
+                Yellow.paint(&i.release_type.to_string()),
             );
         }
     }
