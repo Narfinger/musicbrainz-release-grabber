@@ -264,6 +264,10 @@ pub(crate) enum ReleaseType {
     Interview,
     Soundtrack,
     Audiobook,
+    #[serde(rename = "DJ-mix")]
+    DJMix,
+    #[serde(rename = "Mixtape/Street")]
+    Mixtape,
     Live,
     Remix,
     Demo,
