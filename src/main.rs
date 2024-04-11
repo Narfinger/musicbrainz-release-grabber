@@ -8,11 +8,12 @@ use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use nu_ansi_term::Color::{Blue, Green, Red, Yellow};
+use ratelimit::Ratelimiter;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs::create_dir;
-use std::thread;
+use std::time::Duration;
 use std::{
     fs::{self, read_dir},
     path::PathBuf,
@@ -21,8 +22,6 @@ use std::{
 use time::format_description;
 use time::Date;
 use time::OffsetDateTime;
-
-use crate::responses::TIMEOUT;
 
 pub mod responses;
 
@@ -114,7 +113,7 @@ impl Config {
 }
 
 /// get the artists ids for all artists in artist_names
-fn get_artist_ids() -> Result<()> {
+fn get_artist_ids(ratelimiter: &Ratelimiter) -> Result<()> {
     let client = get_client()?;
     let mut c = Config::read()?;
 
@@ -124,9 +123,6 @@ fn get_artist_ids() -> Result<()> {
     let artist_names: HashSet<String> = c.artist_names.iter().cloned().collect();
 
     let mut error_artist = Vec::new();
-
-    let duration = TIMEOUT.checked_mul(artist_names.len() as i32).unwrap();
-    println!("Getting artists ids. This will take roughly {}", duration);
 
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
@@ -139,11 +135,10 @@ fn get_artist_ids() -> Result<()> {
         .difference(&already_found_artists)
         .progress_with(pb)
     {
-        match Artist::new(&client, i) {
+        match Artist::new(&client, i, ratelimiter) {
             Ok(a) => c.artist_full.push(a),
             Err(e) => error_artist.push(format!("{} with error {:?}", i, e)),
         }
-        thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
     }
     c.artist_full.sort_unstable();
     println!("Writing artists we found");
@@ -170,13 +165,11 @@ fn get_artist_ids() -> Result<()> {
 }
 
 /// check for releases later then last checked date from artist_full
-fn grab_new_releases() -> Result<()> {
+fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
     let client = get_client()?;
 
     let mut c = Config::read()?;
     println!("Finding new albums from {}", c.last_checked_time);
-    let duration = TIMEOUT.checked_mul(c.artist_full.len() as i32).unwrap();
-    println!("This will take at least {}", duration);
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -189,14 +182,13 @@ fn grab_new_releases() -> Result<()> {
     for a in c.artist_full.iter().progress_with(pb) {
         //for a in c.artist_full.iter() {
         //    println!("artist {}", a.name);
-        let res = a.get_albums_basic_filtered(&client);
+        let res = a.get_albums_basic_filtered(&client, ratelimiter);
         if let Ok(mut albums) = res {
             all_albums.append(&mut albums);
         } else {
             error_artists.push(a);
             println!("re {:?}", res);
         }
-        thread::sleep(responses::TIMEOUT.unsigned_abs()); //otherwise we are hammering the api too much.
     }
     if !error_artists.is_empty() {
         println!("Could not get all artists. Please check manually the following:");
@@ -262,8 +254,6 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
 fn get_artists(dir: PathBuf) -> Result<()> {
     //let dir = PathBuf::from_str(&base_dir)?;
     let dir_count = read_dir(&dir)?.count();
-    let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
-    println!("Counting artists. This will take at least {}", dur);
     let mut entries = read_dir(&dir)?
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
@@ -285,8 +275,6 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     /// FIXME this whole thing needs less cloning
     let dir_count = read_dir(dir)?.count();
-    let dur = TIMEOUT.checked_mul(dir_count as i32).unwrap();
-    println!("Counting artists. This will take at least {}", dur);
     let dir_entries = read_dir(dir)?
         .progress_count(dir_count as u64)
         .filter_map(|res| res.map(|e| e.path()).ok())
@@ -324,11 +312,11 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_specific_artists(str: &str) -> Result<()> {
+fn get_specific_artists(str: &str, ratelimiter: &Ratelimiter) -> Result<()> {
     let client = get_client()?;
-    let artist = Artist::new(&client, str)?;
+    let artist = Artist::new(&client, str, ratelimiter)?;
     println!("Foudn artist {}", artist.name);
-    let mut albums = artist.get_albums_basic_filtered(&client)?;
+    let mut albums = artist.get_albums_basic_filtered(&client, ratelimiter)?;
     albums.sort_by_cached_key(|a| a.date);
 
     for i in albums {
@@ -411,11 +399,14 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let ratelimiter = Ratelimiter::builder(5, Duration::from_secs(1))
+        .max_tokens(50)
+        .build()?;
     if let Some(path) = args.music_dir {
         println!("Getting artists");
         get_artists(path)?;
     } else if args.ids {
-        get_artist_ids()?;
+        get_artist_ids(&ratelimiter)?;
     } else if let Some(cl) = args.clear {
         if cl == ClearValues::WholeConfig {
             let c = Config::default();
@@ -430,13 +421,13 @@ fn main() -> Result<()> {
     } else if let Some(p) = args.artists_not_in_config {
         artists_not_in_config(&p)?;
     } else if let Some(artist) = args.artist {
-        get_specific_artists(&artist)?;
+        get_specific_artists(&artist, &ratelimiter)?;
     } else if let Some(cmd) = args.artists {
         let mut c = Config::read()?;
         match cmd {
             SubCommands::Add { name } => {
                 let client = get_client()?;
-                let new_artist = Artist::new(&client, &name)?;
+                let new_artist = Artist::new(&client, &name, &ratelimiter)?;
                 println!(
                     "Found artist \"{}\" for search \"{}\"",
                     new_artist.name, new_artist.search_string
@@ -459,7 +450,7 @@ fn main() -> Result<()> {
                 c.write()?;
             }
             SubCommands::New => {
-                grab_new_releases()?;
+                grab_new_releases(&ratelimiter)?;
             }
             SubCommands::Ignore { name } => {
                 c.add_ignore(name)?;

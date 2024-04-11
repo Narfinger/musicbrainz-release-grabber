@@ -1,21 +1,13 @@
 use std::{
     fmt::{self, Display},
-    thread,
 };
 
-use anyhow::{anyhow, bail, Context, Result};
-use lazy_static::lazy_static;
+use anyhow::{anyhow, Context, Result};
+use ratelimit::Ratelimiter;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use time::{format_description, Date, Duration};
+use time::{format_description, Date};
 use uuid::Uuid;
-
-lazy_static! {
-    /// Timeout we do between connections.
-    /// This is intentionally large.
-    pub(crate) static ref TIMEOUT: Duration = Duration::SECOND;
-    //pub(crate) static ref TIMEOUT: Duration = Duration::SECOND * 1.5;
-}
 
 /// Json response for an artist
 #[derive(Debug, Serialize, Deserialize)]
@@ -100,8 +92,14 @@ impl Ord for Album {
 
 impl Artist {
     /// Search for an artist given by string `s` and construct an artist object
-    pub(crate) fn new(client: &Client, s: &str) -> Result<Self> {
+    pub(crate) fn new(client: &Client, s: &str, ratelimit: &Ratelimiter) -> Result<Self> {
         let s_rep = String::from(s).replace(' ', "%20");
+        for _ in 0..10 {
+            if let Err(sleep) = ratelimit.try_wait() {
+                std::thread::sleep(sleep);
+                continue;
+            }
+        }
         let resp: SearchResponse = client
             .get(format!(
                 "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
@@ -113,7 +111,6 @@ impl Artist {
             .context("Error in getting status")?
             .json()
             .context("Error in decoding artist id response")?;
-
         if resp.artists.is_empty() {
             Err(anyhow!("could not find UUID for {}", s))
         } else {
@@ -127,25 +124,17 @@ impl Artist {
     }
 
     /// Get albums for this artist
-    fn get_albums(&self, client: &Client) -> Result<Vec<ReleasesResponse>> {
+    fn get_albums(
+        &self,
+        client: &Client,
+        ratelimit: &Ratelimiter,
+    ) -> Result<Vec<ReleasesResponse>> {
         let mut all_releases = Vec::new();
 
-        if false {
-            let response = client
-            .get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
-                self.id
-            ))
-            .send()
-            .context("Error in getting albums")?
-            .error_for_status()?;
-            let res_cl = response.text();
-            let res_cl = res_cl.unwrap();
-            let jd = &mut serde_json::Deserializer::from_str(&res_cl);
-            let other_res: Result<LookupResponse, _> = serde_path_to_error::deserialize(jd);
-            if let Err(e) = other_res {
-                println!("{} {}", e.path(), e);
-                bail!("this is error");
+        for _ in 0..10 {
+            if let Err(sleep) = ratelimit.try_wait() {
+                std::thread::sleep(sleep);
+                continue;
             }
         }
 
@@ -162,7 +151,12 @@ impl Artist {
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
-            thread::sleep(TIMEOUT.unsigned_abs());
+            for _ in 0..10 {
+                if let Err(sleep) = ratelimit.try_wait() {
+                    std::thread::sleep(sleep);
+                    continue;
+                }
+            }
             let response = client.get(format!(
                 "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
                 self.id,
@@ -182,8 +176,12 @@ impl Artist {
 
     /// Filter albums by simple release type and returns the albums found
     /// Notice that this filters out also albums that do not have a specific year-month-day release date in the db
-    pub(crate) fn get_albums_basic_filtered(&self, client: &Client) -> Result<Vec<Album>> {
-        let albs_resp = self.get_albums(client)?;
+    pub(crate) fn get_albums_basic_filtered(
+        &self,
+        client: &Client,
+        ratelimit: &Ratelimiter,
+    ) -> Result<Vec<Album>> {
+        let albs_resp = self.get_albums(client, ratelimit)?;
         let format = format_description::parse("[year]-[month]-[day]")?;
         let mut albs = albs_resp
             .into_iter()
