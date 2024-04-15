@@ -7,7 +7,6 @@ use directories::ProjectDirs;
 use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
-use nu_ansi_term::Color::{Blue, Green, Red, Yellow};
 use ratelimit::Ratelimiter;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
@@ -22,6 +21,7 @@ use std::{
 use time::format_description;
 use time::Date;
 use time::OffsetDateTime;
+use yansi::Paint;
 
 pub mod responses;
 
@@ -232,18 +232,18 @@ fn print_new_albums(a: &[&Album]) -> Result<()> {
         if i.date.is_some() && i.date.unwrap() >= today {
             println!(
                 "{} - {} - {} - ({})",
-                Red.strikethrough().paint(&i.artist),
-                Blue.strikethrough().paint(&date),
-                Green.strikethrough().paint(&i.title),
-                Yellow.strikethrough().paint(&i.release_type.to_string()),
+                i.artist.red().strike(),
+                date.blue().strike(),
+                i.title.green().strike(),
+                i.release_type.to_string().yellow().strike(),
             )
         } else {
             println!(
                 "{} - {} - {} - ({})",
-                Red.bold().paint(&i.artist),
-                Blue.bold().paint(&date),
-                Green.bold().paint(&i.title),
-                Yellow.paint(&i.release_type.to_string()),
+                i.artist.red().bold(),
+                date.blue().blue().bold(),
+                i.title.green().bold(),
+                i.release_type.to_string().yellow(),
             );
         }
     }
@@ -325,7 +325,7 @@ fn get_specific_artists(str: &str, ratelimiter: &Ratelimiter) -> Result<()> {
             .date
             .and_then(|d| d.format(&format).ok())
             .unwrap_or_else(|| "NONE".to_string());
-        println!("{} - {}", Red.paint(date), Green.paint(i.title));
+        println!("{} - {}", date.red(), i.title.green());
     }
     Ok(())
 }

@@ -692,14 +692,13 @@ dependencies = [
 
 [[package]]
 name = "musicbrainz-release-grabber"
-version = "0.9.1"
+version = "0.10.1"
 dependencies = [
  "anyhow",
  "clap",
  "directories",
  "indicatif",
  "lazy_static",
- "nu-ansi-term",
  "ratelimit",
  "reqwest",
  "serde",
@@ -707,6 +706,7 @@ dependencies = [
  "serde_path_to_error",
  "time",
  "uuid",
+ "yansi",
 ]
 
 [[package]]
@@ -725,15 +725,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nu-ansi-term"
-version = "0.50.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd2800e1520bdc966782168a627aa5d1ad92e33b984bf7c7615d31280c83ff14"
-dependencies = [
- "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -1682,3 +1673,9 @@ dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
 ]
+
+[[package]]
+name = "yansi"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
