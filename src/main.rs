@@ -399,7 +399,7 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let ratelimiter = Ratelimiter::builder(5, Duration::from_secs(1))
+    let ratelimiter = Ratelimiter::builder(40, Duration::from_secs(1))
         .max_tokens(50)
         .build()?;
     if let Some(path) = args.music_dir {

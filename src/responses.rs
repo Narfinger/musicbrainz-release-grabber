@@ -1,6 +1,4 @@
-use std::{
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
 use anyhow::{anyhow, Context, Result};
 use ratelimit::Ratelimiter;
@@ -8,6 +6,8 @@ use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use time::{format_description, Date};
 use uuid::Uuid;
+
+const HOW_MANY_RELEASE_RESULT: i32 = 100;
 
 /// Json response for an artist
 #[derive(Debug, Serialize, Deserialize)]
@@ -140,8 +140,9 @@ impl Artist {
 
         let mut resp: LookupResponse = client
             .get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={}&limit=100&fmt=json&inc=release-groups",
-                self.id
+                "https://musicbrainz.org/ws/2/release?artist={artist_id}&limit={limit}&fmt=json&inc=release-groups",
+                artist_id = self.id,
+                limit = HOW_MANY_RELEASE_RESULT
             ))
             .send()
             .context("Error in getting albums")?
@@ -158,9 +159,10 @@ impl Artist {
                 }
             }
             let response = client.get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={}&offset={}&limit=100&fmt=json&inc=release-groups",
-                self.id,
-                all_releases.len(),
+                "https://musicbrainz.org/ws/2/release?artist={artist_id}&offset={offset}&limit={limit}&fmt=json&inc=release-groups",
+                artist_id = self.id,
+                offset = all_releases.len(),
+                limit = HOW_MANY_RELEASE_RESULT
             ))
             .send()
             .context("Error in getting albums step")?
