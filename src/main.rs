@@ -29,7 +29,7 @@ pub mod responses;
 const PROGRESS_STYLE: &str =
     "[{spinner:.green}] [{elapsed}/{eta}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)";
 
-const CHARS_TO_REMOVE: &[char; 4] = &['.', '&', '\'', '/'];
+const CHARS_TO_REMOVE: &[char; 5] = &['.', '&', '\'', '’', '/'];
 
 /// The config struct
 #[derive(Debug, Serialize, Deserialize)]
@@ -281,23 +281,25 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
         .filter(|res| res.is_dir())
         .filter_map(|p| p.file_name().and_then(|p| p.to_str()).map(String::from))
         .filter(|r| !r.contains('-') && !r.contains("Best") && !r.contains("Greatest"))
-        .map(|s| s.to_ascii_lowercase())
         .map(|i| i.replace(CHARS_TO_REMOVE, ""))
+        .map(|s| s.to_ascii_lowercase())
         .collect::<HashSet<String>>();
 
     let config = Config::read()?;
     let artist_in_config = config
         .artist_full
         .into_iter()
-        .map(|a| a.name.to_ascii_lowercase())
+        .map(|a| a.name)
         .map(|i| i.replace(CHARS_TO_REMOVE, ""))
-        .collect::<Vec<String>>();
+        .map(|i| i.to_ascii_lowercase())
+        .collect::<HashSet<String>>();
 
-    // remove thigns that we do not need
-    let c: HashSet<String> = HashSet::from_iter(artist_in_config.iter().cloned());
+    // remove things that we do not need
+    //let c: HashSet<String> = HashSet::from_iter(artist_in_config.iter().cloned());
+    println!("{:?}", artist_in_config);
     let ignore = HashSet::from_iter(config.ignore_paths.iter());
     let mut res = dir_entries
-        .difference(&c)
+        .difference(&artist_in_config)
         .collect::<HashSet<&String>>()
         .difference(&ignore)
         .cloned()
