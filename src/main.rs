@@ -8,6 +8,7 @@ use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use ratelimit::Ratelimiter;
+use reqwest::header::REFERER;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,6 +23,8 @@ use time::format_description;
 use time::Date;
 use time::OffsetDateTime;
 use yansi::Paint;
+
+use crate::responses::ReleaseType;
 
 pub mod responses;
 
@@ -204,7 +207,20 @@ fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
         .collect::<Vec<&Album>>();
     res.sort_unstable();
 
-    print_new_albums(&res)?;
+    let others = res
+        .clone()
+        .into_iter()
+        .filter(|a| a.release_type != ReleaseType::Album)
+        .collect::<Vec<&Album>>();
+    println!("Printing {} Others", others.len());
+    print_new_albums(&others)?;
+    let albums = res
+        .into_iter()
+        .filter(|a| a.release_type == ReleaseType::Album)
+        .collect::<Vec<&Album>>();
+    println!("---------------------------------------------------------");
+    println!("Printing {} Albums", albums.len());
+    print_new_albums(&albums)?;
 
     // updateing config
     c.now()?;
@@ -221,7 +237,6 @@ fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
 
 /// Print all the albums we got in the vector in a nice way
 fn print_new_albums(a: &[&Album]) -> Result<()> {
-    println!("Found {} new albums", a.len());
     let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
     let format = format_description::parse("[year]-[month]-[day]")?;
     for i in a {
@@ -401,8 +416,8 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let ratelimiter = Ratelimiter::builder(40, Duration::from_secs(1))
-        .max_tokens(50)
+    let ratelimiter = Ratelimiter::builder(30, Duration::from_secs(5))
+        .max_tokens(30)
         .build()?;
     if let Some(path) = args.music_dir {
         println!("Getting artists");

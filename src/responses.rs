@@ -251,7 +251,7 @@ enum Status {
 }
 
 /// release type
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub(crate) enum ReleaseType {
     None,
     EP,
