@@ -8,7 +8,6 @@ use indicatif::ProgressBar;
 use indicatif::ProgressIterator;
 use indicatif::ProgressStyle;
 use ratelimit::Ratelimiter;
-use reqwest::header::REFERER;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -288,7 +287,6 @@ fn get_artists(dir: PathBuf) -> Result<()> {
 
 /// Find all artists that are in the directory `dir` but not in the config
 fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
-    /// FIXME this whole thing needs less cloning
     let dir_count = read_dir(dir)?.count();
     let dir_entries = read_dir(dir)?
         .progress_count(dir_count as u64)

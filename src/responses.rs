@@ -167,7 +167,7 @@ impl Artist {
             .send()
             .context("Error in getting albums step")?
             .error_for_status()
-            .context("Error in getting status code")?;
+            .with_context(|| format!("Error in getting status code for artist {}", self.name))?;
 
             let mut resp: LookupResponse = response.json().context("Error in decoding albums")?;
             all_releases.append(&mut resp.releases);
