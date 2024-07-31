@@ -1,12 +1,7 @@
-use anyhow::bail;
-use anyhow::{anyhow, Context, Result};
-use clap::Parser;
-use clap::Subcommand;
-use clap::ValueEnum;
+use anyhow::{anyhow, bail, Context, Result};
+use clap::{Parser, Subcommand, ValueEnum};
 use directories::ProjectDirs;
-use indicatif::ProgressBar;
-use indicatif::ProgressIterator;
-use indicatif::ProgressStyle;
+use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
 use ratelimit::Ratelimiter;
 use responses::{Album, Artist};
 use serde::{Deserialize, Serialize};
@@ -370,6 +365,9 @@ enum SubCommands {
 
     /// Add To Ignore List
     Ignore { name: PathBuf },
+
+    /// Bump date back by number of days
+    BumpBack { days: u64 },
 }
 
 /// Arguments for the program
@@ -412,6 +410,51 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
     }
 }
 
+fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyhow::Error> {
+    let mut c = Config::read()?;
+    Ok(match cmd {
+        SubCommands::Add { name } => {
+            let client = get_client()?;
+            let new_artist = Artist::new(&client, &name, &ratelimiter)?;
+            println!(
+                "Found artist \"{}\" for search \"{}\"",
+                new_artist.name, new_artist.search_string
+            );
+            if c.artist_full.iter().any(|a| a.id == new_artist.id) {
+                println!("Artist is already in the list");
+            } else {
+                c.artist_full.push(new_artist);
+                c.artist_full.sort_unstable();
+                c.write()?;
+            }
+        }
+        SubCommands::List => {
+            for i in c.artist_full {
+                println!("{}", i.name);
+            }
+        }
+        SubCommands::Delete { name } => {
+            c.artist_full.retain(|a| a.name != name);
+            c.write()?;
+        }
+        SubCommands::New => {
+            grab_new_releases(&ratelimiter)?;
+        }
+        SubCommands::Ignore { name } => {
+            c.add_ignore(name)?;
+        }
+        SubCommands::BumpBack { days } => {
+            let last_date = c.last_checked_time;
+            c.last_checked_time -= Duration::new(60 * 60 * 24 * days, 0);
+            println!(
+                "Change date from |{}| to |{}|",
+                last_date, c.last_checked_time
+            );
+            c.write()?;
+        }
+    })
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let ratelimiter = Ratelimiter::builder(30, Duration::from_secs(5))
@@ -438,39 +481,7 @@ fn main() -> Result<()> {
     } else if let Some(artist) = args.artist {
         get_specific_artists(&artist, &ratelimiter)?;
     } else if let Some(cmd) = args.artists {
-        let mut c = Config::read()?;
-        match cmd {
-            SubCommands::Add { name } => {
-                let client = get_client()?;
-                let new_artist = Artist::new(&client, &name, &ratelimiter)?;
-                println!(
-                    "Found artist \"{}\" for search \"{}\"",
-                    new_artist.name, new_artist.search_string
-                );
-                if c.artist_full.iter().any(|a| a.id == new_artist.id) {
-                    println!("Artist is already in the list");
-                } else {
-                    c.artist_full.push(new_artist);
-                    c.artist_full.sort_unstable();
-                    c.write()?;
-                }
-            }
-            SubCommands::List => {
-                for i in c.artist_full {
-                    println!("{}", i.name);
-                }
-            }
-            SubCommands::Delete { name } => {
-                c.artist_full.retain(|a| a.name != name);
-                c.write()?;
-            }
-            SubCommands::New => {
-                grab_new_releases(&ratelimiter)?;
-            }
-            SubCommands::Ignore { name } => {
-                c.add_ignore(name)?;
-            }
-        }
+        run_subcommand(cmd, ratelimiter)?;
     }
 
     Ok(())
