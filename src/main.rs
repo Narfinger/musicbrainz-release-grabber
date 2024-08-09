@@ -39,6 +39,8 @@ struct Config {
     last_checked_time: Date,
     /// paths that we ignore
     ignore_paths: Vec<String>,
+    /// previous new albums,
+    previous: Vec<Album>,
 }
 
 impl Default for Config {
@@ -49,6 +51,7 @@ impl Default for Config {
             artist_names: vec![],
             last_checked_time: OffsetDateTime::now_utc().date(),
             ignore_paths: vec![],
+            previous: vec![],
         }
     }
 }
@@ -205,16 +208,19 @@ fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
         .clone()
         .into_iter()
         .filter(|a| a.release_type != ReleaseType::Album)
-        .collect::<Vec<&Album>>();
+        .cloned()
+        .collect::<Vec<Album>>();
     println!("Printing {} Others", others.len());
     print_new_albums(&others)?;
     let albums = res
         .into_iter()
         .filter(|a| a.release_type == ReleaseType::Album)
-        .collect::<Vec<&Album>>();
+        .cloned()
+        .collect::<Vec<Album>>();
     println!("---------------------------------------------------------");
     println!("Printing {} Albums", albums.len());
     print_new_albums(&albums)?;
+    c.previous = albums;
 
     // updateing config
     c.now()?;
@@ -230,7 +236,7 @@ fn get_client() -> Result<reqwest::blocking::Client, anyhow::Error> {
 }
 
 /// Print all the albums we got in the vector in a nice way
-fn print_new_albums(a: &[&Album]) -> Result<()> {
+fn print_new_albums(a: &[Album]) -> Result<()> {
     let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
     let format = format_description::parse("[year]-[month]-[day]")?;
     for i in a {
@@ -368,6 +374,9 @@ enum SubCommands {
 
     /// Bump date back by number of days
     BumpBack { days: u64 },
+
+    /// List the previous albums
+    Previous,
 }
 
 /// Arguments for the program
@@ -412,7 +421,7 @@ fn valid_dir(s: &str) -> Result<PathBuf, String> {
 
 fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyhow::Error> {
     let mut c = Config::read()?;
-    Ok(match cmd {
+    match cmd {
         SubCommands::Add { name } => {
             let client = get_client()?;
             let new_artist = Artist::new(&client, &name, &ratelimiter)?;
@@ -452,7 +461,11 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             );
             c.write()?;
         }
-    })
+        SubCommands::Previous => {
+            print_new_albums(&c.previous)?;
+        }
+    }
+    Ok(())
 }
 
 fn main() -> Result<()> {

@@ -52,7 +52,7 @@ impl Ord for Artist {
 }
 
 /// Album that got released
-#[derive(Debug, Eq)]
+#[derive(Clone, Debug, Eq, Serialize, Deserialize)]
 pub(crate) struct Album {
     /// the uuid on musicbrainz
     pub(crate) id: Uuid,
