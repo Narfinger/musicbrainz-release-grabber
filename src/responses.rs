@@ -148,7 +148,7 @@ impl Artist {
             .context("Error in getting albums")?
             .error_for_status()?
             .json()
-            .context("Error in decoding albums")?;
+            .with_context(|| format!("Error in decoding albums for artist {}", self.name))?;
         all_releases.append(&mut resp.releases);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {

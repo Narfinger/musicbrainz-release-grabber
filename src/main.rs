@@ -177,23 +177,21 @@ fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
             .progress_chars("##-"),
     );
     pb.enable_steady_tick(std::time::Duration::new(0, 500));
-    let mut error_artists = Vec::new();
+    let mut errors = Vec::new();
     let mut all_albums: Vec<Album> = Vec::new();
     for a in c.artist_full.iter().progress_with(pb) {
         //for a in c.artist_full.iter() {
         //    println!("artist {}", a.name);
         let res = a.get_albums_basic_filtered(&client, ratelimiter);
-        if let Ok(mut albums) = res {
-            all_albums.append(&mut albums);
-        } else {
-            error_artists.push(a);
-            println!("re {:?}", res);
-        }
+        match res {
+            Ok(mut albums) => all_albums.append(&mut albums),
+            Err(e) => errors.push(e),
+        };
     }
-    if !error_artists.is_empty() {
+    if !errors.is_empty() {
         println!("Could not get all artists. Please check manually the following:");
-        for i in error_artists {
-            println!("{}", i.name);
+        for i in errors {
+            println!("{:#}", i);
         }
     }
 
