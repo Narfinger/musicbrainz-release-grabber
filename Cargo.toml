@@ -1,6 +1,6 @@
 [package]
 name = "musicbrainz-release-grabber"
-version = "0.13.1"
+version = "0.14.0"
 edition = "2021"
 description = "Check if there are new albums on the musicbrainz release. Give it a folder and it will check the artist ids and save it. Now you can just ask for new releases whenever you want. Don't forget to edit the artists."
 categories = ["command-line-utilities"]
@@ -12,6 +12,7 @@ license = "GPL-3.0-only"
 [dependencies]
 anyhow = "1.0.86"
 clap = { version = "4.5.16", features = ["derive"] }
+dialoguer = "0.11.0"
 directories = "5.0.1"
 indicatif = "0.17.8"
 lazy_static = "1.5.0"

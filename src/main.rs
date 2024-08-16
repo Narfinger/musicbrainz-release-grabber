@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use dialoguer::Confirm;
 use directories::ProjectDirs;
 use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
 use ratelimit::Ratelimiter;
@@ -116,6 +117,11 @@ impl Config {
 fn get_artist_ids(ratelimiter: &Ratelimiter) -> Result<()> {
     let client = get_client()?;
     let mut c = Config::read()?;
+
+    if c.artist_names.is_empty() {
+        println!("We do not have artist names, you need to add some");
+        return Ok(());
+    }
 
     //c.artist_full.clear();
     let already_found_artists: HashSet<String> =
@@ -351,6 +357,19 @@ enum ClearValues {
 /// Subcommands
 #[derive(Debug, Subcommand)]
 enum SubCommands {
+    /// Initiale Setup
+    Init {
+        /// Give a directory to parse artist names
+        #[arg(short, long, value_parser =valid_dir, value_name = "DIR", group = "config")]
+        dir: Option<PathBuf>,
+        /// should we fill the artists
+        #[arg(short, long, group = "config")]
+        fill_ids: bool,
+        /// Clear config values
+        #[clap(short, long, value_enum)]
+        clear: Option<ClearValues>,
+    },
+
     /// Adds an artist to our list
     Add { name: String },
 
@@ -377,20 +396,8 @@ enum SubCommands {
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Get the artists from a file
-    #[clap(short, long, value_parser =valid_dir, value_name = "DIR")]
-    music_dir: Option<PathBuf>,
-
-    /// get artists ids
-    #[clap(short, long)]
-    ids: bool,
-
-    /// Clear config values
-    #[clap(short, long, value_enum)]
-    clear: Option<ClearValues>,
-
     #[clap(subcommand)]
-    artists: Option<SubCommands>,
+    commands: Option<SubCommands>,
 
     /// Artists not in config
     #[clap(short, long, value_parser = valid_dir, value_name = "DIR")]
@@ -458,6 +465,48 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
         SubCommands::Previous => {
             print_new_albums(&c.previous)?;
         }
+        SubCommands::Init {
+            dir,
+            fill_ids,
+            clear,
+        } => {
+            if let Some(d) = dir {
+                let confirmation = Confirm::new()
+                    .default(false)
+                    .with_prompt("This will delete the whole configuration")
+                    .interact()
+                    .unwrap();
+                if confirmation {
+                    get_artists_from_directory(d)?;
+                }
+            } else if fill_ids {
+                get_artist_ids(&ratelimiter)?;
+            } else if let Some(cl) = clear {
+                let mut c = Config::read()?;
+                let confirm_string = match cl {
+                    ClearValues::Ids => {
+                        c.artist_full = vec![];
+                        "This will clear all artist ids!"
+                    }
+                    ClearValues::Artists => {
+                        c.artist_names = vec![];
+                        "This will clear all artist names."
+                    }
+                    ClearValues::WholeConfig => {
+                        c = Config::default();
+                        "This will clear the whole configuration!"
+                    }
+                };
+                let confirmation = Confirm::new()
+                    .default(false)
+                    .with_prompt(confirm_string)
+                    .interact()
+                    .unwrap();
+                if confirmation {
+                    return c.write();
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -467,27 +516,11 @@ fn main() -> Result<()> {
     let ratelimiter = Ratelimiter::builder(30, Duration::from_secs(5))
         .max_tokens(30)
         .build()?;
-    if let Some(path) = args.music_dir {
-        println!("Getting artists");
-        get_artists_from_directory(path)?;
-    } else if args.ids {
-        get_artist_ids(&ratelimiter)?;
-    } else if let Some(cl) = args.clear {
-        if cl == ClearValues::WholeConfig {
-            let c = Config::default();
-            return c.write();
-        }
-        let mut c = Config::read()?;
-        match cl {
-            ClearValues::Ids => c.artist_full = vec![],
-            ClearValues::Artists => c.artist_names = vec![],
-            ClearValues::WholeConfig => bail!("This should never happen"),
-        }
-    } else if let Some(p) = args.artists_not_in_config {
+    if let Some(p) = args.artists_not_in_config {
         artists_not_in_config(&p)?;
     } else if let Some(artist) = args.artist {
         get_specific_artist_id(&artist, &ratelimiter)?;
-    } else if let Some(cmd) = args.artists {
+    } else if let Some(cmd) = args.commands {
         run_subcommand(cmd, ratelimiter)?;
     }
 
