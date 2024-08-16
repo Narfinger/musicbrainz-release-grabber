@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow,Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use dialoguer::Confirm;
 use directories::ProjectDirs;
