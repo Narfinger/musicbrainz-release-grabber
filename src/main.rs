@@ -360,13 +360,13 @@ enum SubCommands {
     /// Initiale Setup
     Init {
         /// Give a directory to parse artist names
-        #[arg(short, long, value_parser =valid_dir, value_name = "DIR", group = "config")]
+        #[arg(short, long, value_parser =valid_dir, value_name = "DIR", group = "init")]
         dir: Option<PathBuf>,
         /// should we fill the artists
-        #[arg(short, long, group = "config")]
+        #[arg(short, long, group = "init")]
         fill_ids: bool,
         /// Clear config values
-        #[clap(short, long, value_enum)]
+        #[clap(short, long, value_enum, group = "init")]
         clear: Option<ClearValues>,
     },
 
@@ -470,6 +470,12 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             fill_ids,
             clear,
         } => {
+            if dir.is_none() && !fill_ids && clear.is_none() {
+                println!("Use at least one init argument");
+                println!("Try init -h");
+                return Ok(());
+            }
+
             if let Some(d) = dir {
                 let confirmation = Confirm::new()
                     .default(false)
