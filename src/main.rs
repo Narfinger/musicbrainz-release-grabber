@@ -24,7 +24,7 @@ pub mod responses;
 
 /// Progress bar style
 const PROGRESS_STYLE: &str =
-    "[{spinner:.green}] [{elapsed}/{eta}] {bar:40.cyan/blue} {pos:>7}/{len:7} ({percent}%)";
+    "[{spinner:.green}] [{pos:.green}/{len:.green}] ({percent:>2}%) {bar:40.cyan/blue} [ETA: {eta:>3}] |                 {msg}";
 
 const CHARS_TO_REMOVE: &[char; 5] = &['.', '&', '\'', '’', '/'];
 
@@ -130,11 +130,9 @@ fn get_artist_ids(ratelimiter: &Ratelimiter) -> Result<()> {
             .template(PROGRESS_STYLE)?
             .progress_chars("##-"),
     );
-
-    for i in artist_names
-        .difference(&already_found_artists)
-        .progress_with(pb)
-    {
+    pb.enable_steady_tick(Duration::from_millis(250));
+    for i in pb.wrap_iter(artist_names.difference(&already_found_artists)) {
+        pb.set_message(format!("Artist: {}", i));
         match Artist::new(&client, i, ratelimiter) {
             Ok(a) => c.artist_full.push(a),
             Err(e) => error_artist.push(format!("{} with error {:?}", i, e)),
@@ -179,9 +177,8 @@ fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
     pb.enable_steady_tick(std::time::Duration::new(0, 500));
     let mut errors = Vec::new();
     let mut all_albums: Vec<Album> = Vec::new();
-    for a in c.artist_full.iter().progress_with(pb) {
-        //for a in c.artist_full.iter() {
-        //    println!("artist {}", a.name);
+    for a in pb.wrap_iter(c.artist_full.iter()) {
+        pb.set_message(format!("Artist: {}", a.name));
         let res = a.get_albums_basic_filtered(&client, ratelimiter);
         match res {
             Ok(mut albums) => all_albums.append(&mut albums),
@@ -264,7 +261,7 @@ fn print_new_albums(a: &[Album]) -> Result<()> {
 }
 
 /// fill all artist_names into the config from a directory
-fn get_artists(dir: PathBuf) -> Result<()> {
+fn get_artists_from_directory(dir: PathBuf) -> Result<()> {
     //let dir = PathBuf::from_str(&base_dir)?;
     let dir_count = read_dir(&dir)?.count();
     let mut entries = read_dir(&dir)?
@@ -301,14 +298,13 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     let artist_in_config = config
         .artist_full
         .into_iter()
-        .map(|a| a.name)
+        .map(|a| a.sort_name)
         .map(|i| i.replace(CHARS_TO_REMOVE, ""))
         .map(|i| i.to_ascii_lowercase())
         .collect::<HashSet<String>>();
 
     // remove things that we do not need
     //let c: HashSet<String> = HashSet::from_iter(artist_in_config.iter().cloned());
-    println!("{:?}", artist_in_config);
     let ignore = HashSet::from_iter(config.ignore_paths.iter());
     let mut res = dir_entries
         .difference(&artist_in_config)
@@ -326,7 +322,7 @@ fn artists_not_in_config(dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_specific_artists(str: &str, ratelimiter: &Ratelimiter) -> Result<()> {
+fn get_specific_artist_id(str: &str, ratelimiter: &Ratelimiter) -> Result<()> {
     let client = get_client()?;
     let artist = Artist::new(&client, str, ratelimiter)?;
     println!("Foudn artist {}", artist.name);
@@ -473,7 +469,7 @@ fn main() -> Result<()> {
         .build()?;
     if let Some(path) = args.music_dir {
         println!("Getting artists");
-        get_artists(path)?;
+        get_artists_from_directory(path)?;
     } else if args.ids {
         get_artist_ids(&ratelimiter)?;
     } else if let Some(cl) = args.clear {
@@ -490,7 +486,7 @@ fn main() -> Result<()> {
     } else if let Some(p) = args.artists_not_in_config {
         artists_not_in_config(&p)?;
     } else if let Some(artist) = args.artist {
-        get_specific_artists(&artist, &ratelimiter)?;
+        get_specific_artist_id(&artist, &ratelimiter)?;
     } else if let Some(cmd) = args.artists {
         run_subcommand(cmd, ratelimiter)?;
     }

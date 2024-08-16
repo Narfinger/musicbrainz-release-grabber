@@ -14,6 +14,8 @@ const HOW_MANY_RELEASE_RESULT: i32 = 100;
 struct ArtistsResponse {
     id: String,
     name: String,
+    #[serde(rename(deserialize = "sort-name"))]
+    sort_name: String,
 }
 
 /// JSON response for a search query
@@ -31,6 +33,8 @@ pub(crate) struct Artist {
     pub(crate) id: Uuid,
     /// The original search string, i.e., the directory. Good to see where our search went wrong
     pub(crate) search_string: String,
+    /// sort name in musicbrainz
+    pub(crate) sort_name: String,
 }
 
 impl PartialEq for Artist {
@@ -119,6 +123,7 @@ impl Artist {
                 name: resp.artists[0].name.clone(),
                 id,
                 search_string: s.to_owned(),
+                sort_name: resp.artists[0].sort_name.clone(),
             })
         }
     }
