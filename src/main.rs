@@ -1,4 +1,4 @@
-use anyhow::{anyhow,Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use dialoguer::Confirm;
 use directories::ProjectDirs;
@@ -448,6 +448,10 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             c.write()?;
         }
         SubCommands::New => {
+            if c.artist_full.is_empty() {
+                println!("We do not have any artists, did you forget to run init -f?");
+                return Ok(());
+            }
             grab_new_releases(&ratelimiter)?;
         }
         SubCommands::Ignore { name } => {
