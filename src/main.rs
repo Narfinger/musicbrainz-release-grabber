@@ -376,8 +376,8 @@ enum SubCommands {
     /// List artists
     List,
 
-    /// Delete an artist
-    Delete { name: String },
+    /// Delete an artist or a list of artists
+    Delete { names: Vec<String> },
 
     /// Find new albums
     New,
@@ -443,8 +443,14 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
                 println!("{}", i.name);
             }
         }
-        SubCommands::Delete { name } => {
-            c.artist_full.retain(|a| a.name != name);
+        SubCommands::Delete { names } => {
+            for name in names {
+                if let Some(index) = c.artist_full.iter().position(|a| a.name == name) {
+                    println!("Removing {}", name);
+                    c.artist_full.remove(index);
+                }
+                println!("Did not find {}", name);
+            }
             c.write()?;
         }
         SubCommands::New => {
