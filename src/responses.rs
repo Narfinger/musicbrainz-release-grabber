@@ -276,6 +276,8 @@ pub(crate) enum ReleaseType {
     Live,
     Remix,
     Demo,
+    #[serde(rename = "Audio drama")]
+    AudioDrama,
 }
 
 impl Display for ReleaseType {
