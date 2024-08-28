@@ -129,11 +129,7 @@ impl Artist {
     }
 
     /// Get albums for this artist
-    fn get_albums(
-        &self,
-        client: &Client,
-        ratelimit: &Ratelimiter,
-    ) -> Result<Vec<ReleasesResponse>> {
+    fn get_albums(&self, client: &Client, ratelimit: &Ratelimiter) -> Result<Vec<ReleaseGroup>> {
         let mut all_releases = Vec::new();
 
         for _ in 0..10 {
@@ -145,7 +141,7 @@ impl Artist {
 
         let mut resp: LookupResponse = client
             .get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={artist_id}&limit={limit}&fmt=json&inc=release-groups",
+                "https://musicbrainz.org/ws/2/release-group?artist={artist_id}&limit={limit}&fmt=json",
                 artist_id = self.id,
                 limit = HOW_MANY_RELEASE_RESULT
             ))
@@ -154,7 +150,7 @@ impl Artist {
             .error_for_status()?
             .json()
             .with_context(|| format!("Error in decoding albums for artist {}", self.name))?;
-        all_releases.append(&mut resp.releases);
+        all_releases.append(&mut resp.release_groups);
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
             for _ in 0..10 {
@@ -164,7 +160,7 @@ impl Artist {
                 }
             }
             let response = client.get(format!(
-                "https://musicbrainz.org/ws/2/release?artist={artist_id}&offset={offset}&limit={limit}&fmt=json&inc=release-groups",
+                "https://musicbrainz.org/ws/2/release-group?artist={artist_id}&offset={offset}&limit={limit}&fmt=json",
                 artist_id = self.id,
                 offset = all_releases.len(),
                 limit = HOW_MANY_RELEASE_RESULT
@@ -175,7 +171,7 @@ impl Artist {
             .with_context(|| format!("Error in getting status code for artist {}", self.name))?;
 
             let mut resp: LookupResponse = response.json().context("Error in decoding albums")?;
-            all_releases.append(&mut resp.releases);
+            all_releases.append(&mut resp.release_groups);
         }
 
         Ok(all_releases)
@@ -192,13 +188,10 @@ impl Artist {
         let format = format_description::parse("[year]-[month]-[day]")?;
         let mut albs = albs_resp
             .into_iter()
-            .filter(|a| a.status == Some(Status::Official))
-            .filter(|a| a.release_group.primary_type == Some(ReleaseType::Album))
-            .map(|a: ReleasesResponse| {
+            .filter(|a| a.primary_type == Some(ReleaseType::Album))
+            .map(|a: ReleaseGroup| {
                 let date = a
-                    .release_group
                     .first_release_date
-                    .or(a.date)
                     .and_then(|s| Date::parse(&s, &format).ok());
                 Album {
                     id: a.id,
@@ -206,7 +199,6 @@ impl Artist {
                     title: a.title,
                     date,
                     release_type: a
-                        .release_group
                         .secondary_types
                         .first()
                         .unwrap_or(&ReleaseType::Album)
@@ -229,12 +221,15 @@ struct LookupResponse {
     release_offset: Option<usize>,
     #[serde(rename = "release-count")]
     release_count: Option<usize>,
-    releases: Vec<ReleasesResponse>,
+    #[serde(rename = "release-groups")]
+    release_groups: Vec<ReleaseGroup>,
 }
 
 /// JSON response for ReleaseGroup
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ReleaseGroup {
+    id: Uuid,
+    title: String,
     #[serde(rename = "primary-type")]
     primary_type: Option<ReleaseType>,
     #[serde(rename = "first-release-date")]
@@ -284,15 +279,4 @@ impl Display for ReleaseType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
-}
-
-/// Json response for release
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct ReleasesResponse {
-    id: Uuid,
-    date: Option<String>,
-    status: Option<Status>,
-    title: String,
-    #[serde(rename = "release-group")]
-    release_group: ReleaseGroup,
 }
