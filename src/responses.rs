@@ -8,6 +8,8 @@ use time::{format_description, Date};
 use uuid::Uuid;
 
 const HOW_MANY_RELEASE_RESULT: i32 = 100;
+const ARTIST_SEARCH_URL: &str = "https://musicbrainz.org/ws/2/artist/";
+const ALBUM_QUERY_STRING: &str = "https://musicbrainz.org/ws/2/release-group";
 
 /// Json response for an artist
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,7 +99,6 @@ impl Ord for Album {
 impl Artist {
     /// Search for an artist given by string `s` and construct an artist object
     pub(crate) fn new(client: &Client, s: &str, ratelimit: &Ratelimiter) -> Result<Self> {
-        let s_rep = String::from(s).replace(' ', "%20");
         for _ in 0..10 {
             if let Err(sleep) = ratelimit.try_wait() {
                 std::thread::sleep(sleep);
@@ -105,10 +106,8 @@ impl Artist {
             }
         }
         let resp: SearchResponse = client
-            .get(format!(
-                "https://musicbrainz.org/ws/2/artist/?query={}&limit=3&fmt=json",
-                s_rep
-            ))
+            .get(ARTIST_SEARCH_URL)
+            .query(&[("query", s), ("limit", &3.to_string()), ("fmt", "json")])
             .send()
             .context("Error in getting artist id")?
             .error_for_status()
@@ -140,11 +139,12 @@ impl Artist {
         }
 
         let mut resp: LookupResponse = client
-            .get(format!(
-                "https://musicbrainz.org/ws/2/release-group?artist={artist_id}&limit={limit}&fmt=json",
-                artist_id = self.id,
-                limit = HOW_MANY_RELEASE_RESULT
-            ))
+            .get(ALBUM_QUERY_STRING)
+            .query(&[
+                ("artist", self.id.to_string()),
+                ("limit", HOW_MANY_RELEASE_RESULT.to_string()),
+                ("fmt", "json".to_string()),
+            ])
             .send()
             .context("Error in getting albums")?
             .error_for_status()?
@@ -159,16 +159,20 @@ impl Artist {
                     continue;
                 }
             }
-            let response = client.get(format!(
-                "https://musicbrainz.org/ws/2/release-group?artist={artist_id}&offset={offset}&limit={limit}&fmt=json",
-                artist_id = self.id,
-                offset = all_releases.len(),
-                limit = HOW_MANY_RELEASE_RESULT
-            ))
-            .send()
-            .context("Error in getting albums step")?
-            .error_for_status()
-            .with_context(|| format!("Error in getting status code for artist {}", self.name))?;
+            let response = client
+                .get(ALBUM_QUERY_STRING)
+                .query(&[
+                    ("artist", self.id.to_string()),
+                    ("offset", all_releases.len().to_string()),
+                    ("limit", HOW_MANY_RELEASE_RESULT.to_string()),
+                    ("fmt", "json".to_string()),
+                ])
+                .send()
+                .context("Error in getting albums step")?
+                .error_for_status()
+                .with_context(|| {
+                    format!("Error in getting status code for artist {}", self.name)
+                })?;
 
             let mut resp: LookupResponse = response.json().context("Error in decoding albums")?;
             all_releases.append(&mut resp.release_groups);
