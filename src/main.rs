@@ -446,10 +446,11 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
         SubCommands::Delete { names } => {
             for name in names {
                 if let Some(index) = c.artist_full.iter().position(|a| a.name == name) {
-                    println!("Removing {}", name);
+                    println!("{} {}", "Removing".green(), name);
                     c.artist_full.remove(index);
+                } else {
+                    println!("{} {}", "Did not find:".red(), name);
                 }
-                println!("Did not find {}", name);
             }
             c.write()?;
         }

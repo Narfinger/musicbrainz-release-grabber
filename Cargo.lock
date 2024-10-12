@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "musicbrainz-release-grabber"
-version = "0.15.0"
+version = "0.15.2"
 dependencies = [
  "anyhow",
  "clap",
