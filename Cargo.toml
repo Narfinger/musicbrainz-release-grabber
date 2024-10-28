@@ -1,6 +1,6 @@
 [package]
 name = "musicbrainz-release-grabber"
-version = "0.15.2"
+version = "0.16.0"
 edition = "2021"
 description = "Check if there are new albums on the musicbrainz release. Give it a folder and it will check the artist ids and save it. Now you can just ask for new releases whenever you want. Don't forget to edit the artists."
 categories = ["command-line-utilities"]
@@ -10,14 +10,14 @@ license = "GPL-3.0-only"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.90"
+anyhow = "1.0.91"
 clap = { version = "4.5.20", features = ["derive"] }
 dialoguer = "0.11.0"
 directories = "5.0.1"
 indicatif = "0.17.8"
 ratelimit = "0.9.1"
 reqwest = { version = "0.12.8", features = ["blocking", "json", "gzip", "deflate"] }
-serde = { version = "1.0.210", features = ["derive"] }
+serde = { version = "1.0.213", features = ["derive"] }
 serde_json = "1.0.132"
 serde_path_to_error = "0.1.16"
 time = { version = "0.3.36", features = ["serde", "parsing", "formatting", "serde-human-readable"] }

@@ -390,6 +390,9 @@ enum SubCommands {
 
     /// List the previous albums
     Previous,
+
+    /// Same as previous
+    History,
 }
 
 /// Arguments for the program
@@ -473,7 +476,9 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             );
             c.write()?;
         }
-        SubCommands::Previous => {
+        SubCommands::Previous | SubCommands::History => {
+            println!("Last checked on {}", c.last_checked_time);
+            println!("---------------------------------------------------------");
             print_new_albums(&c.previous)?;
         }
         SubCommands::Init {
