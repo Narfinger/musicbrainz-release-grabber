@@ -393,6 +393,23 @@ enum SubCommands {
 
     /// Same as previous
     History,
+
+    /// Artists not in config
+    NotInConfig {
+        #[clap(value_parser = valid_dir, value_name = "DIR")]
+        path: PathBuf
+    },
+
+    /// Search a specific artist and print complete discography
+    Discography {
+        artist_search: String,
+    },
+
+    /// Searches if an artist is in the config
+    ConfigSearch {
+        artist_search: String,
+    },
+
 }
 
 /// Arguments for the program
@@ -401,14 +418,6 @@ enum SubCommands {
 struct Args {
     #[clap(subcommand)]
     commands: Option<SubCommands>,
-
-    /// Artists not in config
-    #[clap(short, long, value_parser = valid_dir, value_name = "DIR")]
-    artists_not_in_config: Option<PathBuf>,
-
-    /// Search a specific artist and print complete discography
-    #[clap(short = 's', long)]
-    artist: Option<String>,
 }
 
 /// is this directory a valid direcotry
@@ -529,6 +538,20 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
                 }
             }
         }
+        SubCommands::NotInConfig { path } => {
+            artists_not_in_config(&path)?;
+        }
+        SubCommands::Discography { artist_search } => {
+            get_specific_artist_id(&artist_search, &ratelimiter)?;
+        }
+        SubCommands::ConfigSearch { artist_search } => {
+            let artist_found = c.artist_full.iter().find(|p| p.name.contains(&artist_search) || p.search_string.contains(&artist_search));
+            if let Some(a) = artist_found {
+                println!("Found artist {}", a.name);
+            } else {
+                println!("Artist not found");
+            }
+        },
     }
     Ok(())
 }
@@ -538,11 +561,7 @@ fn main() -> Result<()> {
     let ratelimiter = Ratelimiter::builder(30, Duration::from_secs(5))
         .max_tokens(30)
         .build()?;
-    if let Some(p) = args.artists_not_in_config {
-        artists_not_in_config(&p)?;
-    } else if let Some(artist) = args.artist {
-        get_specific_artist_id(&artist, &ratelimiter)?;
-    } else if let Some(cmd) = args.commands {
+    if let Some(cmd) = args.commands {
         run_subcommand(cmd, ratelimiter)?;
     }
 
