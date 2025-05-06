@@ -21,7 +21,9 @@ use yansi::Paint;
 
 use crate::responses::ReleaseType;
 
-pub mod responses;
+mod responses;
+#[cfg(feature = "tui")]
+mod tui;
 
 /// Progress bar style
 const PROGRESS_STYLE: &str =
@@ -168,8 +170,12 @@ fn get_artist_ids(ratelimiter: &Ratelimiter) -> Result<()> {
     Ok(())
 }
 
-/// check for releases later then last checked date from artist_full
-fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
+struct AlbumResult {
+    others: Vec<Album>,
+    albums: Vec<Album>,
+}
+
+fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<AlbumResult> {
     let client = get_client()?;
 
     let mut c = Config::read()?;
@@ -211,20 +217,25 @@ fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<()> {
         .filter(|a| a.release_type != ReleaseType::Album)
         .cloned()
         .collect::<Vec<Album>>();
-    println!("Printing {} Others", others.len());
-    print_new_albums(&others)?;
     let albums = res
         .into_iter()
         .filter(|a| a.release_type == ReleaseType::Album)
         .cloned()
         .collect::<Vec<Album>>();
-    println!("---------------------------------------------------------");
-    println!("Printing {} Albums", albums.len());
-    print_new_albums(&albums)?;
-    c.previous = albums;
+    Ok(AlbumResult { others, albums })
+}
 
-    // updateing config
-    c.now()?;
+/// check for releases later then last checked date from artist_full
+fn print_new_releases(albums: AlbumResult) -> Result<()> {
+    println!("Printing {} Others", albums.others.len());
+    print_new_albums(&albums.others)?;
+    println!("---------------------------------------------------------");
+    println!("Printing {} Albums", albums.albums.len());
+    print_new_albums(&albums.albums)?;
+    let mut c = Config::read()?;
+    c.previous = albums.albums;
+    c.write()?;
+
     Ok(())
 }
 
@@ -397,19 +408,18 @@ enum SubCommands {
     /// Artists not in config
     NotInConfig {
         #[clap(value_parser = valid_dir, value_name = "DIR")]
-        path: PathBuf
+        path: PathBuf,
     },
 
     /// Search a specific artist and print complete discography
-    Discography {
-        artist_search: String,
-    },
+    Discography { artist_search: String },
 
     /// Searches if an artist is in the config
-    ConfigSearch {
-        artist_search: String,
-    },
+    ConfigSearch { artist_search: String },
 
+    /// First gets the new ones, combines them with the old ones and puts them in a nice tui
+    #[cfg(feature = "tui")]
+    Tui,
 }
 
 /// Arguments for the program
@@ -471,7 +481,9 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
                 println!("We do not have any artists, did you forget to run init -f?");
                 return Ok(());
             }
-            grab_new_releases(&ratelimiter)?;
+            let album_result = grab_new_releases(&ratelimiter)?;
+            print_new_releases(album_result)?;
+            c.now()?;
         }
         SubCommands::Ignore { name } => {
             c.add_ignore(name)?;
@@ -545,13 +557,27 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             get_specific_artist_id(&artist_search, &ratelimiter)?;
         }
         SubCommands::ConfigSearch { artist_search } => {
-            let artist_found = c.artist_full.iter().find(|p| p.name.contains(&artist_search) || p.search_string.contains(&artist_search));
+            let artist_found = c.artist_full.iter().find(|p| {
+                p.name.contains(&artist_search) || p.search_string.contains(&artist_search)
+            });
             if let Some(a) = artist_found {
                 println!("Found artist {}", a.name);
             } else {
                 println!("Artist not found");
             }
-        },
+        }
+
+        #[cfg(feature = "tui")]
+        SubCommands::Tui => {
+            let previous_albums = c.previous;
+            let album_result = grab_new_releases(&ratelimiter)?;
+
+            let albums = tui::run(tui::InitTui {
+                new_albums: album_result.albums,
+                new_other: album_result.others,
+                old_albums: previous_albums,
+            })?;
+        }
     }
     Ok(())
 }
