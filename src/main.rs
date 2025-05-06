@@ -1,26 +1,19 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use dialoguer::Confirm;
-use directories::ProjectDirs;
 use indicatif::{ProgressBar, ProgressIterator, ProgressStyle};
 use ratelimit::Ratelimiter;
 use responses::{Album, Artist};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fs::create_dir;
 use std::time::Duration;
-use std::{
-    fs::{self, read_dir},
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{fs::read_dir, path::PathBuf, str::FromStr};
 use time::format_description;
-use time::Date;
-use time::OffsetDateTime;
 use yansi::Paint;
 
 use crate::responses::ReleaseType;
+use config::{Config, CHARS_TO_REMOVE};
 
+mod config;
 mod responses;
 #[cfg(feature = "tui")]
 mod tui;
@@ -28,92 +21,6 @@ mod tui;
 /// Progress bar style
 const PROGRESS_STYLE: &str =
     "[{spinner:.green}] [{pos:.green}/{len:.green}] ({percent:>2}%) {bar:40.cyan/blue} [ETA: {eta:>3}] |                 {msg}";
-
-const CHARS_TO_REMOVE: &[char; 5] = &['.', '&', '\'', '’', '/'];
-
-/// The config struct
-#[derive(Debug, Serialize, Deserialize)]
-struct Config {
-    /// Artists names only, gotten from the directory
-    artist_names: Vec<String>,
-    /// Artists we currently check
-    artist_full: Vec<Artist>,
-    /// last time we checked for new
-    last_checked_time: Date,
-    /// paths that we ignore
-    ignore_paths: Vec<String>,
-    /// previous new albums,
-    previous: Vec<Album>,
-}
-
-impl Default for Config {
-    /// default empty config
-    fn default() -> Self {
-        Self {
-            artist_full: vec![],
-            artist_names: vec![],
-            last_checked_time: OffsetDateTime::now_utc().date(),
-            ignore_paths: vec![],
-            previous: vec![],
-        }
-    }
-}
-
-impl Config {
-    /// reads the config
-    fn read() -> Result<Config> {
-        if let Some(project_dirs) =
-            ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
-        {
-            let mut dir = project_dirs.config_dir().to_path_buf();
-            dir.push("config.json");
-            let s = fs::read_to_string(dir).context("Reading config file")?;
-            serde_json::from_str::<Config>(&s).context("Could not read config")
-        } else {
-            Err(anyhow!("Could not find project dir"))
-        }
-    }
-
-    /// Writes a given config to file
-    fn write(&self) -> Result<()> {
-        if let Some(project_dirs) =
-            ProjectDirs::from("io", "narfinger.github", "musicbrainz-release-grabber")
-        {
-            let mut dir = project_dirs.config_dir().to_path_buf();
-            if !dir.exists() {
-                create_dir(&dir)?;
-            }
-            dir.push("config.json");
-            let str = serde_json::to_string_pretty(&self).context("JSON to string")?;
-            fs::write(dir, str).context("Writing string")?;
-            Ok(())
-        } else {
-            Err(anyhow!("Could not find project dir"))
-        }
-    }
-
-    // writes the config with time today (minus one day for safety)
-    fn now(&mut self) -> Result<()> {
-        //remove one day just to be sure
-        self.last_checked_time = OffsetDateTime::now_utc().date() - time::Duration::DAY;
-        self.write()
-    }
-
-    fn add_ignore(&mut self, p: PathBuf) -> Result<()> {
-        let s = p
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_lowercase()
-            .to_string()
-            .replace(CHARS_TO_REMOVE, "");
-        if self.ignore_paths.contains(&s) {
-            println!("Ignore already in place");
-        }
-        self.ignore_paths.push(s);
-        self.write()
-    }
-}
 
 /// get the artists ids for all artists in artist_names
 fn get_artist_ids(ratelimiter: &Ratelimiter) -> Result<()> {
@@ -178,7 +85,7 @@ struct AlbumResult {
 fn grab_new_releases(ratelimiter: &Ratelimiter) -> Result<AlbumResult> {
     let client = get_client()?;
 
-    let mut c = Config::read()?;
+    let c = Config::read()?;
     println!("Finding new albums from {}", c.last_checked_time);
     let pb = ProgressBar::new(c.artist_names.len() as u64);
     pb.set_style(
@@ -572,7 +479,9 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
             let previous_albums = c.previous;
             let album_result = grab_new_releases(&ratelimiter)?;
 
-            let albums = tui::run(tui::InitTui {
+            tui::run(tui::InitTui {
+                //new_albums: vec![],
+                //new_other: vec![],
                 new_albums: album_result.albums,
                 new_other: album_result.others,
                 old_albums: previous_albums,

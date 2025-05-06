@@ -1,15 +1,14 @@
-use anyhow::{anyhow, Result};
-use crossterm::event::{self, Event};
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Style, Stylize},
-    text::Text,
+    style::{Modifier, Style, Stylize},
     widgets::{Block, Row, Table, TableState},
     Frame,
 };
 use time::format_description;
 
-use crate::Album;
+use crate::{config, Album};
 
 pub(crate) struct InitTui {
     pub(crate) old_albums: Vec<Album>,
@@ -23,13 +22,19 @@ struct AppState {
     table_state: TableState,
 }
 
-pub(crate) fn run(init: InitTui) -> Result<Vec<Album>> {
+pub(crate) fn run(init: InitTui) -> Result<()> {
     let mut init = init;
     let mut terminal = ratatui::init();
     let mut table_state = TableState::default();
-    init.old_albums.append(&mut init.new_albums);
+    table_state.select(Some(0));
+
+    let mut albums = init.old_albums;
+    albums.append(&mut init.new_albums);
+
+    albums.sort_by_cached_key(|album| album.date);
+
     let mut app_state = AppState {
-        albums: init.old_albums,
+        albums,
         other: init.new_other,
         table_state,
     };
@@ -37,21 +42,65 @@ pub(crate) fn run(init: InitTui) -> Result<Vec<Album>> {
         terminal
             .draw(|frame| draw(frame, &mut app_state))
             .expect("failed to draw frame");
-        if matches!(event::read().expect("failed to read event"), Event::Key(_)) {
-            break;
+        match handle_events(&mut app_state) {
+            InputHandling::Continue => {}
+            InputHandling::Save => {
+                ratatui::restore();
+                let mut c = config::Config::read()?;
+                c.previous = app_state.albums;
+                c.now()?;
+                return Ok(());
+            }
+            InputHandling::DoNotSave => {
+                ratatui::restore();
+                return Ok(());
+            }
         }
     }
-    ratatui::restore();
-    Err(anyhow!("NYI"))
+}
+
+enum InputHandling {
+    Continue,
+    Save,
+    DoNotSave,
+}
+
+fn handle_events(app_state: &mut AppState) -> InputHandling {
+    match event::read().expect("Could not read") {
+        Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => return InputHandling::DoNotSave,
+            KeyCode::Up => app_state.table_state.select_previous(),
+            KeyCode::Down => app_state.table_state.select_next(),
+            KeyCode::Delete | KeyCode::Char('d') => {
+                if let Some(selected) = app_state.table_state.selected() {
+                    app_state.albums.remove(selected);
+                }
+            }
+            KeyCode::Char('s') => return InputHandling::Save,
+            _ => {}
+        },
+        _ => {}
+    }
+    InputHandling::Continue
 }
 
 fn album_to_row(album: &Album) -> Row {
+    let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
     let format = format_description::parse("[year]-[month]-[day]").expect("Could not do format");
     let date: String = album
         .date
         .and_then(|d| d.format(&format).ok())
         .unwrap_or_else(|| "NONE".to_string());
-    Row::new(vec![album.title.clone(), album.artist.clone(), date])
+
+    let style = if album.date.is_some() && album.date.unwrap() >= today {
+        Style::default()
+            .fg(ratatui::style::Color::Red)
+            .add_modifier(Modifier::CROSSED_OUT)
+    } else {
+        Style::default().fg(ratatui::style::Color::Green)
+    };
+
+    Row::new(vec![album.title.clone(), album.artist.clone(), date]).style(style)
 }
 
 fn construct_table<'a>(albums: &'a [Album], header: &'a str) -> Table<'a> {
@@ -64,11 +113,7 @@ fn construct_table<'a>(albums: &'a [Album], header: &'a str) -> Table<'a> {
         Constraint::Percentage(25),
     ];
     Table::new(rows, widths)
-        // ...and they can be separated by a fixed spacing.
         .column_spacing(1)
-        // You can set the style of the entire Table.
-        .style(Style::new().blue())
-        // It has an optional header, which is simply a Row always visible at the top.
         .header(
             Row::new(vec!["Title", "Artist", "Date"])
                 .style(Style::new().bold())
@@ -76,11 +121,9 @@ fn construct_table<'a>(albums: &'a [Album], header: &'a str) -> Table<'a> {
                 .bottom_margin(1),
         )
         // As any other widget, a Table can be wrapped in a Block.
-        .block(Block::new().title(header))
+        .block(Block::bordered().title(header))
         // The selected row, column, cell and its content can also be styled.
         .row_highlight_style(Style::new().reversed())
-        .column_highlight_style(Style::new().red())
-        .cell_highlight_style(Style::new().blue())
         // ...and potentially show a symbol in front of the selection.
         .highlight_symbol(">>")
 }
