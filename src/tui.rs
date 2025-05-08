@@ -32,6 +32,7 @@ pub(crate) fn run(init: InitTui) -> Result<()> {
     albums.append(&mut init.new_albums);
 
     albums.sort_by_cached_key(|album| album.date);
+    albums.dedup();
 
     let mut app_state = AppState {
         albums,
