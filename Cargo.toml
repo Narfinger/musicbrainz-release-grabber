@@ -20,7 +20,7 @@ directories = "6.0.0"
 indicatif = "0.17.11"
 ratatui = "0.29.0"
 ratelimit = "0.10.0"
-reqwest = { version = "0.12.18", features = [
+reqwest = { version = "0.12.20", features = [
     "blocking",
     "json",
     "gzip",
