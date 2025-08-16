@@ -1,10 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Modifier, Style, Stylize},
-    widgets::{Block, Row, Table, TableState},
-    Frame,
+    layout::{Constraint, Direction, Layout, Rect}, style::{Modifier, Style, Stylize}, text::Text, widgets::{Block, Row, Table, TableState}, Frame
 };
 use time::format_description;
 
@@ -31,8 +28,9 @@ pub(crate) fn run(init: InitTui) -> Result<()> {
     let mut albums = init.old_albums;
     albums.append(&mut init.new_albums);
 
-    albums.sort_by_cached_key(|album| album.date);
+    albums.sort_by_cached_key(|album| album.id);
     albums.dedup();
+    albums.sort_by_cached_key(|album| album.date);
 
     let mut app_state = AppState {
         albums,
@@ -50,10 +48,12 @@ pub(crate) fn run(init: InitTui) -> Result<()> {
                 let mut c = config::Config::read()?;
                 c.previous = app_state.albums;
                 c.now()?;
+                println!("Saved!");
                 return Ok(());
             }
             InputHandling::DoNotSave => {
                 ratatui::restore();
+                println!("We did not save");
                 return Ok(());
             }
         }
@@ -85,7 +85,7 @@ fn handle_events(app_state: &mut AppState) -> InputHandling {
     InputHandling::Continue
 }
 
-fn album_to_row(album: &Album) -> Row {
+fn album_to_row<'a>(album: &'a Album) -> Row<'a> {
     let today = time::OffsetDateTime::now_utc().date() - time::Duration::DAY;
     let format = format_description::parse("[year]-[month]-[day]").expect("Could not do format");
     let date: String = album
@@ -129,6 +129,18 @@ fn construct_table<'a>(albums: &'a [Album], header: &'a str) -> Table<'a> {
         .highlight_symbol(">>")
 }
 
+fn construct_help(frame: &mut Frame, area: Rect) {
+    let layout = Layout::default()
+    .direction(Direction::Vertical)
+    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+    .split(area);
+
+    let text1 = Text::raw("- `s` to save");
+    let text2 = Text::raw("- `Esc` to not save");
+    frame.render_widget(text1, layout[0]);
+    frame.render_widget(text2, layout[1]);
+}
+
 fn draw(frame: &mut Frame, app_state: &mut AppState) {
     let new_albums_table = construct_table(&app_state.albums, "New Albums");
 
@@ -136,9 +148,11 @@ fn draw(frame: &mut Frame, app_state: &mut AppState) {
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([Constraint::Percentage(10), Constraint::Percentage(45), Constraint::Percentage(45)])
         .split(frame.area());
 
-    frame.render_stateful_widget(new_albums_table, layout[0], &mut app_state.table_state);
-    frame.render_widget(others_table, layout[1]);
+    construct_help(frame, layout[0]);
+
+    frame.render_stateful_widget(new_albums_table, layout[1], &mut app_state.table_state);
+    frame.render_widget(others_table, layout[2]);
 }

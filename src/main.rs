@@ -478,14 +478,12 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
         SubCommands::Tui => {
             let previous_albums = c.previous;
             let album_result = grab_new_releases(&ratelimiter)?;
-
             tui::run(tui::InitTui {
-                //new_albums: vec![],
-                //new_other: vec![],
                 new_albums: album_result.albums,
                 new_other: album_result.others,
                 old_albums: previous_albums,
             })?;
+
         }
     }
     Ok(())

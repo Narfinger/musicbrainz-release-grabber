@@ -1,6 +1,6 @@
 [package]
 name = "musicbrainz-release-grabber"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 description = "Check if there are new albums on the musicbrainz release. Give it a folder and it will check the artist ids and save it. Now you can just ask for new releases whenever you want. Don't forget to edit the artists."
 categories = ["command-line-utilities"]
@@ -12,22 +12,22 @@ default = ["tui"]
 tui = []
 
 [dependencies]
-anyhow = "1.0.98"
-clap = { version = "4.5.40", features = ["derive"] }
+anyhow = "1.0.99"
+clap = { version = "4.5.45", features = ["derive"] }
 crossterm = "0.29.0"
 dialoguer = "0.11.0"
 directories = "6.0.0"
-indicatif = "0.17.11"
+indicatif = "0.18.0"
 ratatui = "0.29.0"
 ratelimit = "0.10.0"
-reqwest = { version = "0.12.20", features = [
+reqwest = { version = "0.12.23", features = [
     "blocking",
     "json",
     "gzip",
     "deflate",
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.142"
 serde_path_to_error = "0.1.17"
 time = { version = "0.3.41", features = [
     "serde",
@@ -35,5 +35,5 @@ time = { version = "0.3.41", features = [
     "formatting",
     "serde-human-readable",
 ] }
-uuid = { version = "1.17.0", features = ["serde"] }
+uuid = { version = "1.18.0", features = ["serde"] }
 yansi = "1.0.1"
