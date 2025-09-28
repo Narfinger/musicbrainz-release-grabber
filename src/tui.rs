@@ -117,9 +117,7 @@ fn construct_table<'a>(albums: &'a [Album], header: &'a str) -> Table<'a> {
         .column_spacing(1)
         .header(
             Row::new(vec!["Title", "Artist", "Date"])
-                .style(Style::new().bold())
-                // To add space between the header and the rest of the rows, specify the margin
-                .bottom_margin(1),
+                .style(Style::new().bold()),
         )
         // As any other widget, a Table can be wrapped in a Block.
         .block(Block::bordered().title(header))
