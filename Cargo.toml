@@ -35,5 +35,5 @@ time = { version = "0.3.47", features = [
     "formatting",
     "serde-human-readable",
 ] }
-uuid = { version = "1.19.0", features = ["serde"] }
+uuid = { version = "1.21.0", features = ["serde"] }
 yansi = "1.0.1"
