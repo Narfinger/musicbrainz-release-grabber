@@ -1434,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "musicbrainz-release-grabber"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "clap",
