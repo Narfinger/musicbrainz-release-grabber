@@ -1,6 +1,6 @@
 [package]
 name = "musicbrainz-release-grabber"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2021"
 description = "Check if there are new albums on the musicbrainz release. Give it a folder and it will check the artist ids and save it. Now you can just ask for new releases whenever you want. Don't forget to edit the artists."
 categories = ["command-line-utilities"]
@@ -36,5 +36,5 @@ time = { version = "0.3.47", features = [
     "formatting",
     "serde-human-readable",
 ] }
-uuid = { version = "1.23.2", features = ["serde"] }
+uuid = { version = "1.23.3", features = ["serde"] }
 yansi = "1.0.1"

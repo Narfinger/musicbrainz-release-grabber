@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 use anyhow::{anyhow, Context, Result};
-use ratelimit::Ratelimiter;
+use ratelimit::{Ratelimiter, TryWaitError};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use time::{format_description, Date};
@@ -100,7 +100,7 @@ impl Artist {
     /// Search for an artist given by string `s` and construct an artist object
     pub(crate) fn new(client: &Client, s: &str, ratelimit: &Ratelimiter) -> Result<Self> {
         for _ in 0..10 {
-            if let Err(sleep) = ratelimit.try_wait() {
+            if let Err(TryWaitError::Insufficient(sleep)) = ratelimit.try_wait() {
                 std::thread::sleep(sleep);
                 continue;
             }
@@ -132,7 +132,7 @@ impl Artist {
         let mut all_releases = Vec::new();
 
         for _ in 0..10 {
-            if let Err(sleep) = ratelimit.try_wait() {
+            if let Err(TryWaitError::Insufficient(sleep)) = ratelimit.try_wait() {
                 std::thread::sleep(sleep);
                 continue;
             }
@@ -154,7 +154,7 @@ impl Artist {
         let total_results = resp.release_count.unwrap_or(0);
         while all_releases.len() < total_results {
             for _ in 0..10 {
-                if let Err(sleep) = ratelimit.try_wait() {
+                if let Err(TryWaitError::Insufficient(sleep)) = ratelimit.try_wait() {
                     std::thread::sleep(sleep);
                     continue;
                 }

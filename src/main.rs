@@ -491,8 +491,7 @@ fn run_subcommand(cmd: SubCommands, ratelimiter: Ratelimiter) -> Result<(), anyh
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let ratelimiter = Ratelimiter::builder(30, Duration::from_secs(5))
-        .max_tokens(30)
+    let ratelimiter = Ratelimiter::builder(30).period(Duration::from_secs(5))
         .build()?;
     if let Some(cmd) = args.commands {
         run_subcommand(cmd, ratelimiter)?;
